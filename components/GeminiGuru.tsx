@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Sparkles, Send, Loader2, X } from 'lucide-react';
@@ -15,10 +14,17 @@ export const GeminiGuru: React.FC<GeminiGuruProps> = ({ context, onClose }) => {
 
   const askGuru = async () => {
     if (!prompt.trim()) return;
+    
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      setResponse("Guru Error: API Key is missing. Please set it in your environment variables.");
+      return;
+    }
+
     setLoading(true);
     setResponse('');
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const result = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `You are a helpful study guru. Context: ${context}. Question: ${prompt}`,
@@ -28,7 +34,8 @@ export const GeminiGuru: React.FC<GeminiGuruProps> = ({ context, onClose }) => {
       });
       setResponse(result.text || "I couldn't generate an answer.");
     } catch (error) {
-      setResponse("Sorry, I'm having trouble connecting right now.");
+      console.error("Gemini Guru Error:", error);
+      setResponse("Sorry, I'm having trouble connecting to the AI brain right now.");
     } finally {
       setLoading(false);
     }
@@ -50,10 +57,8 @@ export const GeminiGuru: React.FC<GeminiGuruProps> = ({ context, onClose }) => {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm leading-relaxed">
         {response ? (
-          <div className="prose prose-sm bg-slate-50 p-3 rounded-xl">
-            {response.split('\n').map((line, i) => (
-              <p key={i} className="mb-2">{line}</p>
-            ))}
+          <div className="prose prose-sm bg-slate-50 p-3 rounded-xl whitespace-pre-wrap">
+            {response}
           </div>
         ) : (
           <p className="text-slate-500 italic">Ask me anything about this topic! For example: "Summarize this", "Explain the key concepts", or "Give me 3 quiz questions".</p>
