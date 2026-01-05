@@ -1,16 +1,15 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
-import { SubjectDetail } from './pages/SubjectDetail';
-import { TopicView } from './pages/TopicView';
-import { SubjectsPage } from './pages/SubjectsPage';
-import { FavoritesPage } from './pages/FavoritesPage';
-import { StatsPage } from './pages/StatsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { SearchPage } from './pages/SearchPage';
-import { DownloadsPage } from './pages/DownloadsPage';
+import { Layout } from './components/Layout.tsx';
+import { Dashboard } from './pages/Dashboard.tsx';
+import { SubjectDetail } from './pages/SubjectDetail.tsx';
+import { TopicView } from './pages/TopicView.tsx';
+import { SubjectsPage } from './pages/SubjectsPage.tsx';
+import { FavoritesPage } from './pages/FavoritesPage.tsx';
+import { StatsPage } from './pages/StatsPage.tsx';
+import { SettingsPage } from './pages/SettingsPage.tsx';
+import { SearchPage } from './pages/SearchPage.tsx';
+import { DownloadsPage } from './pages/DownloadsPage.tsx';
 
 const App: React.FC = () => {
   return (

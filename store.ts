@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { AppState, Subject, Topic, Material, MaterialType, ReaderTheme, Tag, DayStats } from './types';
+import { AppState, Subject, Topic, Material, MaterialType, ReaderTheme, Tag, DayStats } from './types.ts';
 
 const STORAGE_KEY = 'study_guru_data_v5';
 

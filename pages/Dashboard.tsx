@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useStore } from '../store';
-import { ProgressRing } from '../components/ProgressRing';
-import { SUBJECT_ICONS } from '../constants';
+import { useStore } from '../store.ts';
+import { ProgressRing } from '../components/ProgressRing.tsx';
+import { SUBJECT_ICONS } from '../constants.tsx';
 import { 
   Play, 
   BookOpen, 
