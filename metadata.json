@@ -1,0 +1,8 @@
+{
+  "name": "Study Guru",
+  "description": "A comprehensive study organization system to structure learning, track progress, and manage study materials including PDFs, videos, and notes.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
