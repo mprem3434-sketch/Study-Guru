@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AppState, Subject, Topic, Material, MaterialType, ReaderTheme, Tag, DayStats } from './types.ts';
 
-const STORAGE_KEY = 'study_guru_data_v5';
+const STORAGE_KEY = 'study_guru_data_v6';
 
 const DEFAULT_TAGS: Tag[] = [
   { id: 't-important', name: 'Important', color: 'bg-rose-500' },
@@ -13,7 +13,18 @@ const DEFAULT_TAGS: Tag[] = [
 
 const getInitialData = (): AppState => {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) return JSON.parse(saved);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      // Ensure new settings exist
+      if (!parsed.settings) parsed.settings = {};
+      if (parsed.settings.fontScale === undefined) parsed.settings.fontScale = 1;
+      if (parsed.settings.reduceMotion === undefined) parsed.settings.reduceMotion = false;
+      return parsed;
+    } catch (e) {
+      console.error("Failed to parse storage", e);
+    }
+  }
 
   const initialSubjects: Subject[] = [
     {
@@ -63,23 +74,22 @@ const getInitialData = (): AppState => {
     recentlyOpened: ['m1'],
     settings: {
       readerTheme: ReaderTheme.LIGHT,
-      isPro: false
+      isPro: false,
+      fontScale: 1,
+      reduceMotion: false
     }
-  };
+  } as any;
 };
 
 const saveToStorage = (state: AppState) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 };
 
-// Simulated Download Registry (Persistent across re-renders)
 const downloadIntervals: Record<string, number> = {};
 
 export const useStore = () => {
-  // Use state to make the store reactive
   const [state, setState] = useState<AppState>(getInitialData());
 
-  // Subscribe to storage updates
   useEffect(() => {
     const handleUpdate = () => {
       setState(getInitialData());
@@ -142,7 +152,6 @@ export const useStore = () => {
           
           const filtered = newState.recentlyOpened.filter(id => id !== materialId);
           newState.recentlyOpened = [materialId, ...filtered].slice(0, 5);
-          
           found = true;
           break;
         }
@@ -175,7 +184,6 @@ export const useStore = () => {
     if (found) updateState(newState);
   };
 
-  // Step 5: Enhanced Download Manager Engine
   const downloadMaterial = (materialId: string) => {
     const currentState = getInitialData();
     let targetMat: Material | null = null;
@@ -189,7 +197,6 @@ export const useStore = () => {
 
     if (!targetMat || targetMat.isDownloaded || downloadIntervals[materialId]) return;
 
-    // Start download simulation
     targetMat.downloadProgress = 1;
     updateState(currentState);
 
@@ -197,7 +204,6 @@ export const useStore = () => {
     const interval = window.setInterval(() => {
       const data = getInitialData();
       let foundInInterval = false;
-      
       for (const subject of data.subjects) {
         for (const topic of subject.topics) {
           const m = topic.materials.find(mat => mat.id === materialId);
@@ -218,10 +224,8 @@ export const useStore = () => {
         }
         if (foundInInterval) break;
       }
-      
       updateState(data);
     }, 700);
-    
     downloadIntervals[materialId] = interval;
   };
 
@@ -229,15 +233,11 @@ export const useStore = () => {
     if (downloadIntervals[materialId]) {
       clearInterval(downloadIntervals[materialId]);
       delete downloadIntervals[materialId];
-      
       const newState = getInitialData();
       for (const subject of newState.subjects) {
         for (const topic of subject.topics) {
           const m = topic.materials.find(mat => mat.id === materialId);
-          if (m) {
-            m.downloadProgress = undefined;
-            break;
-          }
+          if (m) { m.downloadProgress = undefined; break; }
         }
       }
       updateState(newState);
@@ -249,11 +249,7 @@ export const useStore = () => {
     for (const subject of newState.subjects) {
       for (const topic of subject.topics) {
         const m = topic.materials.find(mat => mat.id === materialId);
-        if (m) {
-          m.isDownloaded = false;
-          m.downloadProgress = undefined;
-          break;
-        }
+        if (m) { m.isDownloaded = false; m.downloadProgress = undefined; break; }
       }
     }
     updateState(newState);
@@ -272,30 +268,6 @@ export const useStore = () => {
     updateState(newState);
   };
 
-  const addMaterial = (topicId: string, title: string, type: MaterialType, url: string) => {
-    const newState = { ...state };
-    for (const subject of newState.subjects) {
-      const topic = subject.topics.find(t => t.id === topicId);
-      if (topic) {
-        topic.materials.push({ 
-          id: Math.random().toString(36).substr(2, 9), 
-          topicId, 
-          type, 
-          title, 
-          url: type === MaterialType.NOTE ? '' : url, 
-          lastAccessed: Date.now(), 
-          progress: 0, 
-          isFavorite: false, 
-          notes: "",
-          tags: [],
-          bookmarks: []
-        });
-        updateState(newState);
-        break;
-      }
-    }
-  };
-
   return {
     state,
     updateState,
@@ -307,7 +279,6 @@ export const useStore = () => {
     cancelDownload,
     removeDownload,
     clearAllDownloads,
-    addMaterial,
     addSubject: (name: string, color: string, icon: string) => {
       const newSubject: Subject = {
         id: Math.random().toString(36).substr(2, 9),
@@ -324,6 +295,21 @@ export const useStore = () => {
           subjectId, name, description, isCompleted: false, isPinned: false, tags: [], materials: [] 
         });
         updateState(newState);
+      }
+    },
+    addMaterial: (topicId: string, title: string, type: MaterialType, url: string) => {
+      const newState = { ...state };
+      for (const subject of newState.subjects) {
+        const topic = subject.topics.find(t => t.id === topicId);
+        if (topic) {
+          topic.materials.push({ 
+            id: Math.random().toString(36).substr(2, 9), 
+            topicId, type, title, url: type === MaterialType.NOTE ? '' : url, 
+            lastAccessed: Date.now(), progress: 0, isFavorite: false, notes: "", tags: [], bookmarks: []
+          });
+          updateState(newState);
+          break;
+        }
       }
     },
     togglePinTopic: (topicId: string) => {
@@ -348,17 +334,11 @@ export const useStore = () => {
       updateState(newState);
     },
     deleteSubject: (id: string) => {
-      const subject = state.subjects.find(s => s.id === id);
-      if (subject) {
-        subject.topics.forEach(t => t.materials.forEach(m => {
-          if (downloadIntervals[m.id]) clearInterval(downloadIntervals[m.id]);
-        }));
-      }
-      updateState({ ...state, subjects: state.subjects.filter(s => s.id !== id) });
+      const newState = { ...state, subjects: state.subjects.filter(s => s.id !== id) };
+      updateState(newState);
     },
     deleteMaterial: (topicId: string, materialId: string) => {
       const newState = { ...state };
-      if (downloadIntervals[materialId]) clearInterval(downloadIntervals[materialId]);
       for (const sub of newState.subjects) {
         const topic = sub.topics.find(t => t.id === topicId);
         if (topic) { topic.materials = topic.materials.filter(m => m.id !== materialId); break; }
@@ -378,9 +358,9 @@ export const useStore = () => {
       if (found) updateState(newState);
     },
     exportData: () => {
-      const dataStr = JSON.stringify(state);
+      const dataStr = JSON.stringify(state, null, 2);
       const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-      const exportFileDefaultName = `study_guru_backup_${new Date().toISOString().split('T')[0]}.json`;
+      const exportFileDefaultName = `studyguru_backup_${new Date().toISOString().split('T')[0]}.json`;
       const linkElement = document.createElement('a');
       linkElement.setAttribute('href', dataUri);
       linkElement.setAttribute('download', exportFileDefaultName);
@@ -389,7 +369,7 @@ export const useStore = () => {
     importData: (jsonData: string) => {
       try {
         const data = JSON.parse(jsonData);
-        if (data && data.subjects && data.stats) {
+        if (data && data.subjects) {
           updateState(data);
           return true;
         }
