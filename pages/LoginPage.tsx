@@ -321,6 +321,7 @@ export const LoginPage: React.FC = () => {
                           </div>
                           <input 
                             type="text" 
+                            aria-label="Full Name"
                             value={userName}
                             onChange={(e) => setUserName(e.target.value)}
                             placeholder="e.g. Alex Doe" 
@@ -340,6 +341,7 @@ export const LoginPage: React.FC = () => {
                       </div>
                       <input 
                         type="text" 
+                        aria-label="Email or ID"
                         value={userId}
                         onChange={(e) => setUserId(e.target.value)}
                         placeholder={activeTab === 'TEACHER' ? 'teacher@school.com' : 'student@id.com'}
@@ -358,6 +360,7 @@ export const LoginPage: React.FC = () => {
                                 <Layout size={18} />
                               </div>
                               <select
+                                aria-label="Select Grade"
                                 value={userClass}
                                 onChange={(e) => setUserClass(e.target.value)}
                                 className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm appearance-none"
@@ -408,6 +411,7 @@ export const LoginPage: React.FC = () => {
                              </div>
                              <input 
                                 type="tel" 
+                                aria-label="Mobile Number"
                                 value={userMobile}
                                 maxLength={10}
                                 onChange={(e) => setUserMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
@@ -425,6 +429,7 @@ export const LoginPage: React.FC = () => {
                           </div>
                           <input 
                             type="date" 
+                            aria-label="Date of Birth"
                             value={userDob}
                             onChange={(e) => setUserDob(e.target.value)}
                             className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm [color-scheme:dark]"
@@ -442,6 +447,7 @@ export const LoginPage: React.FC = () => {
                       </div>
                       <input 
                         type={userShowPassword ? "text" : "password"} 
+                        aria-label="Password"
                         value={userPassword}
                         onChange={(e) => setUserPassword(e.target.value)}
                         placeholder="••••••••" 
@@ -520,6 +526,7 @@ export const LoginPage: React.FC = () => {
                       </div>
                       <input 
                         type="email" 
+                        aria-label="Admin ID"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="admin@studyguru.com" 
@@ -537,6 +544,7 @@ export const LoginPage: React.FC = () => {
                       </div>
                       <input 
                         type={showPassword ? "text" : "password"} 
+                        aria-label="Password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••" 

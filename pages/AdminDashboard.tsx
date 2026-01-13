@@ -432,11 +432,11 @@ export const AdminDashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
             <div className="md:col-span-8 relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-slate-300 group-focus-within:text-indigo-500"><Search size={18} /></div>
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search Name or ID..." className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-12 pr-10 py-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-100 transition-all" />
+                <input type="text" aria-label="Search Name or ID" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search Name or ID..." className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-12 pr-10 py-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-100 transition-all" />
             </div>
             {registryTab === 'STUDENTS' && (
                 <div className="md:col-span-4">
-                    <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3.5 text-[10px] font-black uppercase text-slate-600 appearance-none cursor-pointer">
+                    <select aria-label="Filter by Grade" value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3.5 text-[10px] font-black uppercase text-slate-600 appearance-none cursor-pointer">
                         <option value="ALL">All Grades</option>
                         {CLASS_OPTIONS.map(cls => <option key={cls} value={cls}>{cls}</option>)}
                     </select>
@@ -447,7 +447,7 @@ export const AdminDashboard: React.FC = () => {
         <div className="overflow-hidden rounded-[1.5rem] border border-slate-100">
            <div className="grid grid-cols-12 bg-slate-50 p-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
               <div className="col-span-1 flex items-center gap-2">
-                  <button onClick={toggleSelectAll} className="text-slate-400 hover:text-indigo-600 transition-colors">
+                  <button onClick={toggleSelectAll} aria-label={isAllSelected ? "Deselect All" : "Select All"} className="text-slate-400 hover:text-indigo-600 transition-colors">
                       {isAllSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
                   <span>Photo</span>
@@ -469,12 +469,13 @@ export const AdminDashboard: React.FC = () => {
                         <div className="col-span-1 flex items-center gap-3">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); toggleSelection(user.id); }} 
+                                aria-label={isSelected ? "Deselect User" : "Select User"}
                                 className={`transition-colors ${isSelected ? 'text-indigo-600' : 'text-slate-300 hover:text-slate-500'}`}
                             >
                                 {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                             </button>
                             <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center border border-slate-100 cursor-pointer" onClick={() => handleRowClick(user.id)}>
-                                {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <User size={14} className="text-slate-400" />}
+                                {user.avatar ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" /> : <User size={14} className="text-slate-400" />}
                             </div>
                         </div>
                         <div className="col-span-3 cursor-pointer" onClick={() => handleRowClick(user.id)}>
@@ -517,6 +518,7 @@ export const AdminDashboard: React.FC = () => {
                                 onClick={(e) => handleStatusChange(e, user.id, user.status === 'APPROVED' ? 'BLOCKED' : 'APPROVED')} 
                                 className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-sm transition-all hover:scale-105 active:scale-95 ${user.status === 'APPROVED' ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
                                 title={user.status === 'APPROVED' ? "Block User" : "Approve User"}
+                                aria-label={user.status === 'APPROVED' ? "Block User" : "Approve User"}
                             >
                                 {user.status === 'APPROVED' ? <Ban size={14} /> : <CheckCircle2 size={14} />}
                             </button>
@@ -525,6 +527,7 @@ export const AdminDashboard: React.FC = () => {
                                 onClick={(e) => initiateDelete(e, user)} 
                                 className="w-8 h-8 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all cursor-pointer shadow-sm hover:shadow-md active:scale-95"
                                 title="Delete User"
+                                aria-label="Delete User"
                             >
                                 <Trash2 size={14} />
                             </button>
@@ -565,20 +568,21 @@ export const AdminDashboard: React.FC = () => {
                       {/* ... existing form content ... */}
                       <div className="space-y-1">
                           <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Name</label>
-                          <input type="text" placeholder="Full Name" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
+                          <input type="text" aria-label="Full Name" placeholder="Full Name" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
                       </div>
                       <div className="space-y-1">
                           <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Email / ID</label>
-                          <input type="email" placeholder="Email/ID" value={newUser.id} onChange={e => setNewUser({...newUser, id: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
+                          <input type="email" aria-label="Email or ID" placeholder="Email/ID" value={newUser.id} onChange={e => setNewUser({...newUser, id: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
                       </div>
                       <div className="space-y-1">
                           <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Password</label>
-                          <input type="password" placeholder="Password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
+                          <input type="password" aria-label="Password" placeholder="Password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
                       </div>
                       <div className="space-y-1">
                           <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Mobile</label>
                           <input 
                             type="tel" 
+                            aria-label="Mobile Number"
                             placeholder="Mobile (10 digits)" 
                             value={newUser.mobile} 
                             maxLength={10}
@@ -588,20 +592,20 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                       <div className="space-y-1">
                           <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Date of Birth</label>
-                          <input type="date" value={newUser.dob} onChange={e => setNewUser({...newUser, dob: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
+                          <input type="date" aria-label="Date of Birth" value={newUser.dob} onChange={e => setNewUser({...newUser, dob: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none" />
                       </div>
                       {registryTab === 'STUDENTS' && (
                           <>
                               <div className="space-y-1">
                                   <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Class</label>
-                                  <select value={newUser.studentClass} onChange={e => setNewUser({...newUser, studentClass: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none">
+                                  <select aria-label="Select Class" value={newUser.studentClass} onChange={e => setNewUser({...newUser, studentClass: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none">
                                       <option value="">Select Grade</option>
                                       {CLASS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                                   </select>
                               </div>
                               <div className="space-y-1">
                                   <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Section</label>
-                                  <select value={newUser.studentSection} onChange={e => setNewUser({...newUser, studentSection: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none">
+                                  <select aria-label="Select Section" value={newUser.studentSection} onChange={e => setNewUser({...newUser, studentSection: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold outline-none">
                                       <option value="">Select Section</option>
                                       {SECTION_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                                   </select>

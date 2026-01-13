@@ -108,6 +108,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           role="button"
           aria-label="Go to Dashboard"
           tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/')}
         >
           <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 transition-transform group-hover:scale-110">
             <Command size={18} strokeWidth={3} />
@@ -116,7 +117,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <h1 className="text-xl font-black tracking-tighter text-slate-900 leading-none">Guru Core</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
                <div className={`w-1.5 h-1.5 rounded-full ${isAdmin ? 'bg-indigo-500' : isTeacher ? 'bg-amber-500' : 'bg-emerald-500'} animate-pulse`} />
-               <span className="text-[7px] font-black uppercase tracking-[0.4em] text-slate-400">
+               <span className="text-[7px] font-black uppercase tracking-[0.4em] text-slate-500">
                  {isAdmin ? 'Admin Mode' : isTeacher ? 'Teacher Mode' : 'Student Mode'}
                </span>
             </div>
@@ -135,13 +136,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                  </div>
               </div>
               <form onSubmit={handleSearch}>
+                <label htmlFor="desktop-search" className="sr-only">Global Search</label>
                 <input 
+                  id="desktop-search"
                   type="text" 
                   placeholder="SCAN..." 
-                  aria-label="Global search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full h-8 bg-white/40 backdrop-blur-3xl border border-white/90 rounded-xl pl-9 pr-3 text-[8px] font-black text-slate-800 focus:outline-none focus:ring-8 focus:ring-indigo-500/5 focus:bg-white focus:border-indigo-400/30 transition-all placeholder:text-slate-200 uppercase tracking-[0.4em] shadow-inner"
+                  className="w-full h-8 bg-white/40 backdrop-blur-3xl border border-white/90 rounded-xl pl-9 pr-3 text-[8px] font-black text-slate-800 focus:outline-none focus:ring-8 focus:ring-indigo-500/5 focus:bg-white focus:border-indigo-400/30 transition-all placeholder:text-slate-400 uppercase tracking-[0.4em] shadow-inner"
                 />
               </form>
               {/* Spectral Reflection Layer */}
@@ -154,6 +156,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                <button 
                  className="w-10 h-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center shadow-sm hover:shadow-md transition-all group-hover:border-indigo-200"
                  aria-label="User Profile Menu"
+                 aria-haspopup="true"
                >
                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-black shadow-md transition-transform group-hover:scale-110 ${isAdmin ? 'bg-indigo-600' : isTeacher ? 'bg-amber-500' : 'bg-emerald-500'}`}>
                       {state.currentUser?.name.charAt(0).toUpperCase()}
@@ -172,7 +175,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                        </div>
                        <div className="overflow-hidden">
                           <h4 className="font-black text-slate-800 text-xs truncate">{state.currentUser?.name}</h4>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
                             {isAdmin ? 'System Admin' : isTeacher ? 'Faculty' : 'Student'}
                           </p>
                        </div>
@@ -181,6 +184,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     <button 
                       onClick={handleLogout} 
                       className="w-full flex items-center gap-3 p-3 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all group/logout shadow-sm hover:shadow-lg hover:shadow-rose-200"
+                      aria-label="Log Out"
                     >
                        <LogOut size={16} />
                        <span className="text-[10px] font-black uppercase tracking-widest">Secure Logout</span>
@@ -202,7 +206,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 onClick={() => setIsExpanded(!isExpanded)}
                 aria-label={isExpanded ? "Collapse menu" : "Expand menu"}
                 className={`w-full flex items-center rounded-2xl transition-all duration-500 group h-12 mb-6 ${
-                  isExpanded ? 'px-4 bg-slate-900 text-white shadow-xl' : 'justify-center bg-slate-100/50 text-slate-400 hover:text-slate-900'
+                  isExpanded ? 'px-4 bg-slate-900 text-white shadow-xl' : 'justify-center bg-slate-100/50 text-slate-500 hover:text-slate-900'
                 }`}
               >
                 <div className="transition-transform duration-500 group-active:scale-90 flex-shrink-0">
@@ -232,7 +236,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   <Activity size={14} className="text-emerald-400" />
                   {isExpanded && (
                     <div className="animate-in fade-in slide-in-from-left-2">
-                       <p className="text-[7px] font-black uppercase tracking-widest text-slate-400 leading-none">
+                       <p className="text-[7px] font-black uppercase tracking-widest text-slate-500 leading-none">
                          {state.currentUser?.name}
                        </p>
                        <p className="text-[8px] font-black text-emerald-600 mt-1">Online</p>
@@ -273,11 +277,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   <ArrowLeft size={22} />
                 </button>
                 <form onSubmit={handleSearch} className="flex-1 relative h-10">
+                  <label htmlFor="mobile-search" className="sr-only">Search</label>
                   <input 
+                    id="mobile-search"
                     autoFocus
                     type="text" 
                     placeholder="Search node..." 
-                    aria-label="Search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     className="w-full h-full bg-slate-50 border border-slate-100 rounded-xl px-4 text-sm font-bold text-slate-900 focus:bg-white transition-all outline-none"
@@ -320,7 +325,7 @@ const MenuLink = ({ to, icon, label, expanded, activeColor, activeBg }: { to: st
       } ${
         isActive 
           ? `shadow-xl ${activeBg} text-white` 
-          : 'text-slate-400 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+          : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'
       }`
     }
   >
