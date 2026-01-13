@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useStore } from '../store';
+import { useStore } from '../store.ts';
 import { Star, ArrowRight, Video, FileText, Bookmark } from 'lucide-react';
 
 export const FavoritesPage: React.FC = () => {

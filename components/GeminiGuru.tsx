@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Sparkles, Send, Loader2, X, ExternalLink, Search } from 'lucide-react';
@@ -13,22 +14,12 @@ export const GeminiGuru: React.FC<GeminiGuruProps> = ({ context, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [sources, setSources] = useState<{ uri: string, title: string }[]>([]);
 
-  // Safe API Key retrieval for Netlify/Production
-  const getApiKey = () => {
-    try {
-      if (typeof process !== 'undefined' && process.env.API_KEY) return process.env.API_KEY;
-      return (window as any).API_KEY;
-    } catch (e) {
-      return null;
-    }
-  };
-
   const askGuru = async () => {
     if (!prompt.trim()) return;
     
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      setResponse("Guru Error: API Key is not configured. Please check your environment variables.");
+    // Coding guidelines: Directly utilize process.env.API_KEY
+    if (!process.env.API_KEY) {
+      setResponse("Guru Error: API Key is not configured.");
       return;
     }
 
@@ -36,7 +27,8 @@ export const GeminiGuru: React.FC<GeminiGuruProps> = ({ context, onClose }) => {
     setResponse('');
     setSources([]);
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      // Coding guidelines: Initialize with process.env.API_KEY inside the action scope
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const result = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `User Context: ${context}. Question: ${prompt}`,
@@ -46,6 +38,7 @@ export const GeminiGuru: React.FC<GeminiGuruProps> = ({ context, onClose }) => {
         }
       });
       
+      // Coding guidelines: Use .text property to extract output
       setResponse(result.text || "I couldn't process that. Try rephrasing.");
       
       const chunks = result.candidates?.[0]?.groundingMetadata?.groundingChunks;

@@ -1,400 +1,741 @@
-import { useState, useEffect } from 'react';
-import { AppState, Subject, Topic, Material, MaterialType, ReaderTheme, Tag, DayStats } from './types.ts';
 
-const STORAGE_KEY = 'study_guru_data_v6';
+import { create } from 'zustand';
+import { AppState, UserRole, UserStatus, MaterialType, ReaderTheme, Subject, Topic, Material, User, RegisteredUser, Transaction } from './types.ts';
+import { saveState, loadState, saveFile, getFile, deleteFile } from './db.ts';
 
-const DEFAULT_TAGS: Tag[] = [
-  { id: 't-important', name: 'Important', color: 'bg-rose-500' },
-  { id: 't-revision', name: 'Revision', color: 'bg-indigo-500' },
-  { id: 't-exam', name: 'Exam', color: 'bg-amber-500' },
-  { id: 't-doubt', name: 'Doubt', color: 'bg-cyan-500' },
-  { id: 't-formula', name: 'Formula', color: 'bg-emerald-500' },
-];
+const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const getInitialData = (): AppState => {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      // Ensure new settings exist
-      if (!parsed.settings) parsed.settings = {};
-      if (parsed.settings.fontScale === undefined) parsed.settings.fontScale = 1;
-      if (parsed.settings.reduceMotion === undefined) parsed.settings.reduceMotion = false;
-      return parsed;
-    } catch (e) {
-      console.error("Failed to parse storage", e);
-    }
+const initialState: AppState = {
+  currentUser: null,
+  registeredUsers: [],
+  subjects: [],
+  tags: [],
+  stats: {
+    dailyStudyTime: {},
+    totalTopicsCompleted: 0,
+    currentStreak: 0
+  },
+  ledger: [],
+  classFees: {
+    '1st': 12000, '2nd': 12000, '3rd': 14000, '4th': 14000, '5th': 16000,
+    '6th': 18000, '7th': 18000, '8th': 20000, '9th': 22000, '10th': 25000,
+    '11th': 30000, '12th': 35000
+  },
+  recentlyOpened: [],
+  settings: {
+    readerTheme: ReaderTheme.LIGHT,
+    isPro: false,
+    fontScale: 1,
+    reduceMotion: false
   }
+};
 
-  const initialSubjects: Subject[] = [
-    {
-      id: 's1',
-      name: 'Physics',
-      color: 'bg-blue-500',
-      icon: 'atom',
-      position: 0,
-      topics: [
-        {
-          id: 't1',
-          subjectId: 's1',
-          name: 'Laws of Motion',
-          description: 'Basic mechanics and Newton\'s laws',
-          isCompleted: false,
-          isPinned: true,
-          tags: [],
-          materials: [
-            {
-              id: 'm1',
-              topicId: 't1',
-              type: MaterialType.VIDEO,
-              title: 'Concept Explanation',
-              url: 'https://www.youtube.com/watch?v=kKKM8Y-u7ds',
-              lastAccessed: Date.now(),
-              progress: 0,
-              videoPosition: 0,
-              isFavorite: true,
-              notes: "Newton's first law is about inertia.",
-              tags: ['t-important'],
-              bookmarks: []
-            }
-          ]
+interface StoreState {
+  state: AppState;
+  isLoaded: boolean;
+  
+  // Auth
+  login: (name: string, role: UserRole, id: string) => Promise<void>;
+  logout: () => void;
+  signup: (name: string, id: string, pass: string, mobile: string, dob?: string, studentClass?: string, subjects?: string[], role?: UserRole) => Promise<boolean>;
+  updateUserStatus: (id: string, status: UserStatus) => Promise<void>;
+  changePassword: (newPass: string) => Promise<boolean>;
+  updateProfileAvatar: (file: File) => Promise<void>;
+  updateUserDOB: (dob: string) => Promise<boolean>;
+  updateUserMobile: (mobile: string) => Promise<boolean>;
+  updateStudentClass: (studentClass: string) => Promise<boolean>;
+  updateTeacherSubjects: (subjects: string[]) => Promise<boolean>;
+  
+  // Admin Actions
+  adminAddUser: (userData: Omit<RegisteredUser, 'joinedAt'>) => Promise<boolean>;
+  adminAddUsersBulk: (users: RegisteredUser[]) => Promise<void>;
+  adminDeleteUser: (id: string) => Promise<void>;
+  adminUpdateUser: (originalId: string, updates: Partial<RegisteredUser>) => Promise<boolean>;
+  adminAssignClassToTeacher: (teacherId: string, assignedClasses: string[]) => Promise<void>;
+  
+  // Finance Actions
+  adminAddTransaction: (data: Omit<Transaction, 'id'>) => void;
+  adminDeleteTransaction: (id: string) => void;
+  adminSetClassFee: (className: string, amount: number) => void;
+  adminSetStudentCustomFee: (studentId: string, amount: number | undefined) => void;
+
+  // Subjects
+  addSubject: (name: string, color: string, icon: string, targetClass: string) => void;
+  deleteSubject: (id: string) => void;
+
+  // Topics
+  addTopic: (subjectId: string, name: string, description?: string) => void;
+  deleteTopic: (subjectId: string, topicId: string) => void;
+  togglePinTopic: (topicId: string) => void;
+  toggleTopicCompletion: (topicId: string) => void;
+
+  // Materials
+  addMaterial: (topicId: string, title: string, type: MaterialType, url: string, file?: File) => Promise<void>;
+  deleteMaterial: (topicId: string, materialId: string) => void;
+  saveMaterialNotes: (materialId: string, notes: string) => void;
+  updateMaterialProgress: (materialId: string, progress: number) => void;
+  downloadMaterial: (materialId: string) => Promise<void>;
+  removeDownload: (materialId: string) => Promise<void>;
+  clearAllDownloads: () => Promise<void>;
+  getFileBlob: (key: string) => Promise<Blob | null>;
+
+  // Misc
+  updateState: (newState: AppState) => void;
+  globalSearch: (query: string) => any[];
+  exportData: () => void;
+  importData: (jsonString: string) => Promise<boolean>;
+}
+
+export const useStore = create<StoreState>((set, get) => ({
+  state: initialState,
+  isLoaded: false,
+
+  login: async (name, role, id) => {
+    const { state } = get();
+    const registered = state.registeredUsers.find(u => u.id === id);
+    
+    set(store => ({
+      state: {
+        ...store.state,
+        currentUser: { 
+            name, 
+            role, 
+            id,
+            studentClass: registered?.studentClass,
+            studentSection: registered?.studentSection,
+            assignedClasses: registered?.assignedClasses,
+            subjects: registered?.subjects
         }
-      ]
-    }
-  ];
+      }
+    }));
+  },
 
-  return {
-    subjects: initialSubjects,
-    tags: DEFAULT_TAGS,
-    stats: {
-      dailyStudyTime: {},
-      totalTopicsCompleted: 0,
-      currentStreak: 0
-    },
-    recentlyOpened: ['m1'],
-    settings: {
-      readerTheme: ReaderTheme.LIGHT,
-      isPro: false,
-      fontScale: 1,
-      reduceMotion: false
-    }
-  } as any;
-};
+  logout: () => {
+    set(store => ({
+      state: {
+        ...store.state,
+        currentUser: null
+      }
+    }));
+  },
 
-const saveToStorage = (state: AppState) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-};
-
-const downloadIntervals: Record<string, number> = {};
-
-export const useStore = () => {
-  const [state, setState] = useState<AppState>(getInitialData());
-
-  useEffect(() => {
-    const handleUpdate = () => {
-      setState(getInitialData());
+  signup: async (name, id, pass, mobile, dob, studentClass, subjects, role: UserRole = 'USER') => {
+    const { state } = get();
+    if (state.registeredUsers.find(u => u.id === id)) return false;
+    
+    const newUser: RegisteredUser = {
+      id,
+      name,
+      password: pass,
+      mobile,
+      dob: dob || '',
+      studentClass: studentClass || '',
+      studentSection: '',
+      subjects: subjects || [],
+      assignedClasses: [],
+      joinedAt: Date.now(),
+      status: 'PENDING',
+      role: role
     };
-    window.addEventListener('storage_update', handleUpdate);
-    return () => window.removeEventListener('storage_update', handleUpdate);
-  }, []);
-
-  const updateState = (newState: AppState) => {
-    saveToStorage(newState);
-    window.dispatchEvent(new Event('storage_update'));
-  };
-
-  const updateRecentlyOpened = (materialId: string) => {
-    const newState = { ...state };
-    const filtered = newState.recentlyOpened.filter(id => id !== materialId);
-    newState.recentlyOpened = [materialId, ...filtered].slice(0, 5);
-    updateState(newState);
-  };
-
-  const trackStudyTime = (minutes: number, type: MaterialType) => {
-    const newState = { ...state };
-    const today = new Date().toISOString().split('T')[0];
     
-    if (!newState.stats.dailyStudyTime[today]) {
-      newState.stats.dailyStudyTime[today] = {
-        totalMinutes: 0,
-        pdfMinutes: 0,
-        videoMinutes: 0,
-        noteMinutes: 0
-      };
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: [...store.state.registeredUsers, newUser]
+      }
+    }));
+    return true;
+  },
+
+  updateUserStatus: async (id, status) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: store.state.registeredUsers.map(u => 
+          u.id === id ? { ...u, status } : u
+        )
+      }
+    }));
+  },
+
+  adminAddUser: async (userData) => {
+    const { state } = get();
+    if (state.registeredUsers.find(u => u.id === userData.id)) return false;
+
+    const newUser: RegisteredUser = {
+        ...userData,
+        joinedAt: Date.now()
+    };
+
+    set(store => ({
+        state: {
+            ...store.state,
+            registeredUsers: [...store.state.registeredUsers, newUser]
+        }
+    }));
+    return true;
+  },
+
+  adminAddUsersBulk: async (newUsers) => {
+    set(store => ({
+        state: {
+            ...store.state,
+            registeredUsers: [...store.state.registeredUsers, ...newUsers]
+        }
+    }));
+  },
+
+  adminDeleteUser: async (id) => {
+      set(store => ({
+          state: {
+              ...store.state,
+              registeredUsers: store.state.registeredUsers.filter(u => u.id !== id)
+          }
+      }));
+  },
+
+  adminUpdateUser: async (originalId, updates) => {
+    const { state } = get();
+    const userIndex = state.registeredUsers.findIndex(u => u.id === originalId);
+    if (userIndex === -1) return false;
+
+    if (updates.id && updates.id !== originalId) {
+       const duplicate = state.registeredUsers.find(u => u.id === updates.id);
+       if (duplicate) return false;
     }
 
-    const day = newState.stats.dailyStudyTime[today];
-    day.totalMinutes += minutes;
-    if (type === MaterialType.PDF) day.pdfMinutes += minutes;
-    if (type === MaterialType.VIDEO) day.videoMinutes += minutes;
-    if (type === MaterialType.NOTE) day.noteMinutes += minutes;
+    const updatedUser = { ...state.registeredUsers[userIndex], ...updates };
 
-    if (newState.stats.lastStudyDate !== today) {
-      newState.stats.currentStreak += 1;
-      newState.stats.lastStudyDate = today;
-    }
+    set(store => ({
+        state: {
+            ...store.state,
+            registeredUsers: store.state.registeredUsers.map(u => 
+                u.id === originalId ? updatedUser : u
+            )
+        }
+    }));
+    return true;
+  },
+
+  adminAssignClassToTeacher: async (teacherId, assignedClasses) => {
+      set(store => ({
+          state: {
+              ...store.state,
+              registeredUsers: store.state.registeredUsers.map(u => 
+                  u.id === teacherId ? { ...u, assignedClasses } : u
+              )
+          }
+      }));
+  },
+
+  adminAddTransaction: (data) => {
+    const newTransaction: Transaction = {
+      ...data,
+      id: generateId()
+    };
+    set(store => ({
+      state: {
+        ...store.state,
+        ledger: [newTransaction, ...store.state.ledger]
+      }
+    }));
+  },
+
+  adminDeleteTransaction: (id) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        ledger: store.state.ledger.filter(t => t.id !== id)
+      }
+    }));
+  },
+
+  adminSetClassFee: (className, amount) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        classFees: { ...store.state.classFees, [className]: amount }
+      }
+    }));
+  },
+
+  adminSetStudentCustomFee: (studentId, amount) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: store.state.registeredUsers.map(u => 
+          u.id === studentId ? { ...u, customFee: amount } : u
+        )
+      }
+    }));
+  },
+
+  changePassword: async (newPass) => {
+    const { state } = get();
+    if (!state.currentUser) return false;
     
-    updateState(newState);
-  };
-
-  const updateMaterialProgress = (materialId: string, progress: number, position?: number) => {
-    const newState = { ...state };
-    let found = false;
-    for (const subject of newState.subjects) {
-      for (const topic of subject.topics) {
-        const material = topic.materials.find(m => m.id === materialId);
-        if (material) {
-          material.progress = progress;
-          if (material.type === MaterialType.VIDEO) material.videoPosition = position;
-          if (material.type === MaterialType.PDF) material.lastPage = position;
-          material.lastAccessed = Date.now();
-          topic.lastStudiedAt = Date.now();
-          
-          const filtered = newState.recentlyOpened.filter(id => id !== materialId);
-          newState.recentlyOpened = [materialId, ...filtered].slice(0, 5);
-          found = true;
-          break;
-        }
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: store.state.registeredUsers.map(u => 
+          u.id === state.currentUser!.id ? { ...u, password: newPass } : u
+        )
       }
-      if (found) break;
-    }
-    if (found) updateState(newState);
-  };
+    }));
+    return true;
+  },
 
-  const toggleBookmark = (materialId: string, position: number) => {
-    const newState = { ...state };
-    let found = false;
-    for (const subject of newState.subjects) {
-      for (const topic of subject.topics) {
-        const material = topic.materials.find(m => m.id === materialId);
-        if (material) {
-          if (!material.bookmarks) material.bookmarks = [];
-          if (material.bookmarks.includes(position)) {
-            material.bookmarks = material.bookmarks.filter(p => p !== position);
-          } else {
-            material.bookmarks.push(position);
-            material.bookmarks.sort((a, b) => a - b);
+  updateProfileAvatar: async (file) => {
+    const { state } = get();
+    if (!state.currentUser) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      set(store => ({
+        state: {
+          ...store.state,
+          registeredUsers: store.state.registeredUsers.map(u => 
+            u.id === state.currentUser!.id ? { ...u, avatar: result } : u
+          ),
+          currentUser: { ...store.state.currentUser!, avatar: result }
+        }
+      }));
+    };
+    reader.readAsDataURL(file);
+  },
+
+  updateUserDOB: async (dob) => {
+    const { state } = get();
+    if (!state.currentUser) return false;
+
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: store.state.registeredUsers.map(u => 
+          u.id === state.currentUser!.id ? { ...u, dob: dob } : u
+        )
+      }
+    }));
+    return true;
+  },
+
+  updateUserMobile: async (mobile) => {
+    const { state } = get();
+    if (!state.currentUser) return false;
+
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: store.state.registeredUsers.map(u => 
+          u.id === state.currentUser!.id ? { ...u, mobile: mobile } : u
+        )
+      }
+    }));
+    return true;
+  },
+
+  updateStudentClass: async (studentClass) => {
+    const { state } = get();
+    if (!state.currentUser) return false;
+
+    let userFound = false;
+    const newRegisteredUsers = state.registeredUsers.map(u => {
+        if (u.id === state.currentUser!.id) {
+            userFound = true;
+            return { ...u, studentClass: studentClass };
+        }
+        return u;
+    });
+
+    if (!userFound) return false;
+
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: newRegisteredUsers,
+        currentUser: { ...store.state.currentUser!, studentClass }
+      }
+    }));
+    return true;
+  },
+
+  updateTeacherSubjects: async (subjects) => {
+    const { state } = get();
+    if (!state.currentUser) return false;
+
+    let userFound = false;
+    const newRegisteredUsers = state.registeredUsers.map(u => {
+        if (u.id === state.currentUser!.id) {
+            userFound = true;
+            return { ...u, subjects: subjects };
+        }
+        return u;
+    });
+
+    if (!userFound) return false;
+
+    set(store => ({
+      state: {
+        ...store.state,
+        registeredUsers: newRegisteredUsers,
+        currentUser: { ...store.state.currentUser!, subjects: subjects } 
+      }
+    }));
+    return true;
+  },
+
+  addSubject: (name, color, icon, targetClass) => {
+    const { state } = get();
+    const newSubject: Subject = {
+      id: generateId(),
+      name,
+      color,
+      icon,
+      targetClass,
+      createdBy: state.currentUser?.name,
+      topics: [],
+      position: get().state.subjects.length
+    };
+    set(store => ({
+      state: { ...store.state, subjects: [...store.state.subjects, newSubject] }
+    }));
+  },
+
+  deleteSubject: (id) => {
+    set(store => ({
+      state: { ...store.state, subjects: store.state.subjects.filter(s => s.id !== id) }
+    }));
+  },
+
+  addTopic: (subjectId, name, description) => {
+    const newTopic: Topic = {
+      id: generateId(),
+      subjectId,
+      name,
+      description,
+      isCompleted: false,
+      isPinned: false,
+      tags: [],
+      materials: []
+    };
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => 
+          s.id === subjectId ? { ...s, topics: [...s.topics, newTopic] } : s
+        )
+      }
+    }));
+  },
+
+  deleteTopic: (subjectId, topicId) => {
+    const { state } = get();
+    const subject = state.subjects.find(s => s.id === subjectId);
+    const topic = subject?.topics.find(t => t.id === topicId);
+    
+    // Cleanup files associated with this topic to free up space
+    topic?.materials.forEach(m => {
+        if (m.localFileKey) deleteFile(m.localFileKey);
+    });
+
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => 
+          s.id === subjectId 
+          ? { ...s, topics: s.topics.filter(t => t.id !== topicId) } 
+          : s
+        )
+      }
+    }));
+  },
+
+  togglePinTopic: (topicId) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => t.id === topicId ? { ...t, isPinned: !t.isPinned } : t)
+        }))
+      }
+    }));
+  },
+
+  toggleTopicCompletion: (topicId) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => 
+             t.id === topicId 
+             ? { 
+                 ...t, 
+                 isCompleted: !t.isCompleted,
+                 lastStudiedAt: Date.now()
+               } 
+             : t
+          )
+        }))
+      }
+    }));
+  },
+
+  addMaterial: async (topicId, title, type, url, file) => {
+    let localFileKey;
+    let fileName;
+    let fileSize;
+    const { state } = get();
+
+    if (file) {
+      localFileKey = `file_${generateId()}`;
+      fileName = file.name;
+      fileSize = file.size;
+      await saveFile(localFileKey, file);
+    }
+
+    const newMat: Material = {
+      id: generateId(),
+      topicId,
+      type,
+      title,
+      url: url || '',
+      localFileKey,
+      fileName,
+      fileSize,
+      lastAccessed: Date.now(),
+      progress: 0,
+      isFavorite: false,
+      tags: [],
+      isDownloaded: !!localFileKey,
+      createdBy: state.currentUser?.name
+    };
+
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => 
+            t.id === topicId ? { ...t, materials: [...t.materials, newMat] } : t
+          )
+        }))
+      }
+    }));
+  },
+
+  deleteMaterial: (topicId, materialId) => {
+    const { state } = get();
+    const sub = state.subjects.find(s => s.topics.some(t => t.id === topicId));
+    const topic = sub?.topics.find(t => t.id === topicId);
+    const mat = topic?.materials.find(m => m.id === materialId);
+    
+    if (mat?.localFileKey) {
+      deleteFile(mat.localFileKey);
+    }
+
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => 
+            t.id === topicId 
+            ? { ...t, materials: t.materials.filter(m => m.id !== materialId) } 
+            : t
+          )
+        }))
+      }
+    }));
+  },
+
+  saveMaterialNotes: (materialId, notes) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => ({
+            ...t,
+            materials: t.materials.map(m => m.id === materialId ? { ...m, notes } : m)
+          }))
+        }))
+      }
+    }));
+  },
+
+  updateMaterialProgress: (materialId, progress) => {
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => ({
+            ...t,
+            materials: t.materials.map(m => m.id === materialId ? { ...m, progress } : m)
+          }))
+        }))
+      }
+    }));
+  },
+
+  downloadMaterial: async (materialId) => {
+     const { state } = get();
+     let mat: Material | undefined;
+     
+     for (const s of state.subjects) {
+       for (const t of s.topics) {
+         const m = t.materials.find(x => x.id === materialId);
+         if (m) { mat = m; break; }
+       }
+     }
+
+     if (!mat || !mat.url) return;
+
+     try {
+       let blob: Blob;
+       try {
+         const res = await fetch(mat.url);
+         blob = await res.blob();
+       } catch (e) {
+         blob = new Blob(["Offline Content Placeholder"], { type: 'text/plain' });
+       }
+       
+       const key = `dl_${materialId}`;
+       await saveFile(key, blob);
+
+       set(store => ({
+         state: {
+           ...store.state,
+           subjects: store.state.subjects.map(s => ({
+             ...s,
+             topics: s.topics.map(t => ({
+               ...t,
+               materials: t.materials.map(m => 
+                 m.id === materialId 
+                 ? { ...m, isDownloaded: true, localFileKey: key, downloadProgress: 100 } 
+                 : m
+               )
+             }))
+           }))
+         }
+       }));
+     } catch (err) {
+       console.error("Download failed", err);
+     }
+  },
+
+  removeDownload: async (materialId) => {
+    const { state } = get();
+    let fileKey: string | undefined;
+    
+    for (const s of state.subjects) {
+        for (const t of s.topics) {
+            const m = t.materials.find(x => x.id === materialId);
+            if (m) fileKey = m.localFileKey;
+        }
+    }
+
+    if (fileKey) await deleteFile(fileKey);
+
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => ({
+            ...t,
+            materials: t.materials.map(m => 
+              m.id === materialId 
+              ? { ...m, isDownloaded: false, localFileKey: undefined, downloadProgress: undefined } 
+              : m
+            )
+          }))
+        }))
+      }
+    }));
+  },
+
+  clearAllDownloads: async () => {
+    set(store => ({
+      state: {
+        ...store.state,
+        subjects: store.state.subjects.map(s => ({
+          ...s,
+          topics: s.topics.map(t => ({
+            ...t,
+            materials: t.materials.map(m => ({
+                 ...m, isDownloaded: false, localFileKey: undefined, downloadProgress: undefined 
+            }))
+          }))
+        }))
+      }
+    }));
+  },
+
+  getFileBlob: async (key) => {
+    return await getFile(key);
+  },
+
+  updateState: (newState) => set({ state: newState }),
+
+  globalSearch: (query) => {
+    const { state } = get();
+    const q = query.toLowerCase();
+    const results: any[] = [];
+
+    state.subjects.forEach(s => {
+      if (s.name.toLowerCase().includes(q)) {
+        results.push({ type: 'subject', data: s });
+      }
+      s.topics.forEach(t => {
+        if (t.name.toLowerCase().includes(q)) {
+          results.push({ type: 'topic', data: t, subject: s });
+        }
+        t.materials.forEach(m => {
+          if (m.title.toLowerCase().includes(q) || (m.notes && m.notes.toLowerCase().includes(q))) {
+            results.push({ type: 'material', data: m, topic: t, subject: s });
           }
-          found = true;
-          break;
-        }
-      }
-      if (found) break;
-    }
-    if (found) updateState(newState);
-  };
-
-  const downloadMaterial = (materialId: string) => {
-    const currentState = getInitialData();
-    let targetMat: Material | null = null;
-    for (const subject of currentState.subjects) {
-      for (const topic of subject.topics) {
-        const m = topic.materials.find(mat => mat.id === materialId);
-        if (m) { targetMat = m; break; }
-      }
-      if (targetMat) break;
-    }
-
-    if (!targetMat || targetMat.isDownloaded || downloadIntervals[materialId]) return;
-
-    targetMat.downloadProgress = 1;
-    updateState(currentState);
-
-    let prog = 1;
-    const interval = window.setInterval(() => {
-      const data = getInitialData();
-      let foundInInterval = false;
-      for (const subject of data.subjects) {
-        for (const topic of subject.topics) {
-          const m = topic.materials.find(mat => mat.id === materialId);
-          if (m) {
-            prog += Math.floor(Math.random() * 12) + 4;
-            if (prog >= 100) {
-              prog = 100;
-              m.isDownloaded = true;
-              m.downloadProgress = 100;
-              clearInterval(downloadIntervals[materialId]);
-              delete downloadIntervals[materialId];
-            } else {
-              m.downloadProgress = prog;
-            }
-            foundInInterval = true;
-            break;
-          }
-        }
-        if (foundInInterval) break;
-      }
-      updateState(data);
-    }, 700);
-    downloadIntervals[materialId] = interval;
-  };
-
-  const cancelDownload = (materialId: string) => {
-    if (downloadIntervals[materialId]) {
-      clearInterval(downloadIntervals[materialId]);
-      delete downloadIntervals[materialId];
-      const newState = getInitialData();
-      for (const subject of newState.subjects) {
-        for (const topic of subject.topics) {
-          const m = topic.materials.find(mat => mat.id === materialId);
-          if (m) { m.downloadProgress = undefined; break; }
-        }
-      }
-      updateState(newState);
-    }
-  };
-
-  const removeDownload = (materialId: string) => {
-    const newState = { ...state };
-    for (const subject of newState.subjects) {
-      for (const topic of subject.topics) {
-        const m = topic.materials.find(mat => mat.id === materialId);
-        if (m) { m.isDownloaded = false; m.downloadProgress = undefined; break; }
-      }
-    }
-    updateState(newState);
-  };
-
-  const clearAllDownloads = () => {
-    const newState = { ...state };
-    for (const subject of newState.subjects) {
-      for (const topic of subject.topics) {
-        for (const material of topic.materials) {
-          material.isDownloaded = false;
-          material.downloadProgress = undefined;
-        }
-      }
-    }
-    updateState(newState);
-  };
-
-  return {
-    state,
-    updateState,
-    trackStudyTime,
-    updateMaterialProgress,
-    updateRecentlyOpened,
-    toggleBookmark,
-    downloadMaterial,
-    cancelDownload,
-    removeDownload,
-    clearAllDownloads,
-    addSubject: (name: string, color: string, icon: string) => {
-      const newSubject: Subject = {
-        id: Math.random().toString(36).substr(2, 9),
-        name, color, icon, position: state.subjects.length, topics: []
-      };
-      updateState({ ...state, subjects: [...state.subjects, newSubject] });
-    },
-    addTopic: (subjectId: string, name: string, description: string = '') => {
-      const newState = { ...state };
-      const subject = newState.subjects.find(s => s.id === subjectId);
-      if (subject) {
-        subject.topics.push({ 
-          id: Math.random().toString(36).substr(2, 9), 
-          subjectId, name, description, isCompleted: false, isPinned: false, tags: [], materials: [] 
-        });
-        updateState(newState);
-      }
-    },
-    addMaterial: (topicId: string, title: string, type: MaterialType, url: string) => {
-      const newState = { ...state };
-      for (const subject of newState.subjects) {
-        const topic = subject.topics.find(t => t.id === topicId);
-        if (topic) {
-          topic.materials.push({ 
-            id: Math.random().toString(36).substr(2, 9), 
-            topicId, type, title, url: type === MaterialType.NOTE ? '' : url, 
-            lastAccessed: Date.now(), progress: 0, isFavorite: false, notes: "", tags: [], bookmarks: []
-          });
-          updateState(newState);
-          break;
-        }
-      }
-    },
-    togglePinTopic: (topicId: string) => {
-      const newState = { ...state };
-      for (const sub of newState.subjects) {
-        const topic = sub.topics.find(t => t.id === topicId);
-        if (topic) { topic.isPinned = !topic.isPinned; break; }
-      }
-      updateState(newState);
-    },
-    toggleTopicCompletion: (topicId: string) => {
-      const newState = { ...state };
-      for (const subject of newState.subjects) {
-        const topic = subject.topics.find(t => t.id === topicId);
-        if (topic) {
-          topic.isCompleted = !topic.isCompleted;
-          if (topic.isCompleted) newState.stats.totalTopicsCompleted += 1;
-          else newState.stats.totalTopicsCompleted -= 1;
-          break;
-        }
-      }
-      updateState(newState);
-    },
-    deleteSubject: (id: string) => {
-      const newState = { ...state, subjects: state.subjects.filter(s => s.id !== id) };
-      updateState(newState);
-    },
-    deleteMaterial: (topicId: string, materialId: string) => {
-      const newState = { ...state };
-      for (const sub of newState.subjects) {
-        const topic = sub.topics.find(t => t.id === topicId);
-        if (topic) { topic.materials = topic.materials.filter(m => m.id !== materialId); break; }
-      }
-      updateState(newState);
-    },
-    saveMaterialNotes: (materialId: string, notes: string) => {
-      const newState = { ...state };
-      let found = false;
-      for (const sub of newState.subjects) {
-        for (const topic of sub.topics) {
-          const mat = topic.materials.find(m => m.id === materialId);
-          if (mat) { mat.notes = notes; found = true; break; }
-        }
-        if (found) break;
-      }
-      if (found) updateState(newState);
-    },
-    exportData: () => {
-      const dataStr = JSON.stringify(state, null, 2);
-      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-      const exportFileDefaultName = `studyguru_backup_${new Date().toISOString().split('T')[0]}.json`;
-      const linkElement = document.createElement('a');
-      linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', exportFileDefaultName);
-      linkElement.click();
-    },
-    importData: (jsonData: string) => {
-      try {
-        const data = JSON.parse(jsonData);
-        if (data && data.subjects) {
-          updateState(data);
-          return true;
-        }
-      } catch (e) {
-        console.error("Data import error:", e);
-      }
-      return false;
-    },
-    globalSearch: (query: string) => {
-      const q = query.toLowerCase();
-      const results: any[] = [];
-      state.subjects.forEach(s => {
-        if (s.name.toLowerCase().includes(q)) results.push({ type: 'subject', data: s });
-        s.topics.forEach(t => {
-          if (t.name.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q))) {
-            results.push({ type: 'topic', data: t, subject: s });
-          }
-          t.materials.forEach(m => {
-            if (m.title.toLowerCase().includes(q) || (m.notes && m.notes.toLowerCase().includes(q))) {
-              results.push({ type: 'material', data: m, topic: t, subject: s });
-            }
-          });
         });
       });
-      return results;
-    }
-  };
-};
+    });
+    return results;
+  },
+
+  exportData: () => {
+    const { state } = get();
+    const dataStr = JSON.stringify(state);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = 'study_guru_backup.json';
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  },
+
+  importData: async (jsonString) => {
+    try {
+      const parsed = JSON.parse(jsonString);
+      if (parsed.subjects && parsed.settings) {
+        set({ state: parsed });
+        await saveState(parsed);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+}));
+
+loadState().then(s => {
+  if (s) useStore.setState({ state: s, isLoaded: true });
+  else {
+     useStore.setState({ isLoaded: true });
+     useStore.getState().addSubject("Mathematics", "bg-blue-500", "math", "10th");
+  }
+});
+
+useStore.subscribe((store) => {
+  if (store.isLoaded) saveState(store.state);
+});

@@ -1,10 +1,10 @@
 
 import React from 'react';
-import { useStore } from '../store';
-import { ProgressRing } from '../components/ProgressRing';
+import { useStore } from '../store.ts';
+import { ProgressRing } from '../components/ProgressRing.tsx';
 import { TrendingUp, Clock, BookCheck, Zap, Calendar } from 'lucide-react';
 // Import DayStats for type safety in calculation
-import { DayStats } from '../types';
+import { DayStats } from '../types.ts';
 
 export const StatsPage: React.FC = () => {
   const { state } = useStore();
