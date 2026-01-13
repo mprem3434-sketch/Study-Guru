@@ -112,6 +112,7 @@ export const SubjectDetail: React.FC = () => {
         <div className="flex items-center justify-between mb-4 px-2">
             <button 
                 onClick={() => navigate(-1)} 
+                aria-label="Go Back"
                 className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-md border border-slate-100 text-slate-500 hover:text-slate-900 shadow-sm transition-all active:scale-90"
             >
                 <ArrowLeft size={18} />
@@ -119,10 +120,11 @@ export const SubjectDetail: React.FC = () => {
             <div className="flex items-center gap-2">
                <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white/50 backdrop-blur-sm rounded-xl border border-white">
                   <Activity size={12} className={themeColor} />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Class {subject.targetClass}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Class {subject.targetClass}</span>
                </div>
                <button 
                   onClick={() => setSortBy(sortBy === 'name' ? 'pinned' : sortBy === 'pinned' ? 'completion' : 'name')}
+                  aria-label={`Sort by ${sortBy}`}
                   className="px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2"
                 >
                   <ArrowUpDown size={12} />
@@ -139,7 +141,7 @@ export const SubjectDetail: React.FC = () => {
               {IconComponent && React.cloneElement(IconComponent as React.ReactElement<any>, { size: 32, strokeWidth: 2.5 })}
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mb-1 block">Module Header</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 mb-1 block">Module Header</span>
               <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter leading-none truncate">{subject.name}</h2>
               <div className="flex items-center gap-3 mt-3">
                  {subject.createdBy && (
@@ -154,7 +156,7 @@ export const SubjectDetail: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-center md:items-end gap-3 relative z-10 w-full md:w-48 pt-4 md:pt-0 border-t md:border-t-0 border-slate-50">
-             <div className="flex justify-between w-full text-[9px] font-black text-slate-400 uppercase tracking-widest">
+             <div className="flex justify-between w-full text-[9px] font-black text-slate-500 uppercase tracking-widest">
                 <span>Subject Mastery</span>
                 <span className={themeColor}>{progressPercent}%</span>
              </div>
@@ -178,9 +180,10 @@ export const SubjectDetail: React.FC = () => {
           <input 
             type="text" 
             placeholder="FILTER..."
+            aria-label="Filter Topics"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-9 bg-white/60 backdrop-blur-3xl border border-white rounded-xl pl-10 pr-4 focus:outline-none focus:ring-8 focus:ring-indigo-500/5 focus:bg-white focus:border-indigo-100 shadow-sm transition-all text-[8px] font-black text-slate-900 placeholder:text-slate-200 uppercase tracking-[0.3em]"
+            className="w-full h-9 bg-white/60 backdrop-blur-3xl border border-white rounded-xl pl-10 pr-4 focus:outline-none focus:ring-8 focus:ring-indigo-500/5 focus:bg-white focus:border-indigo-100 shadow-sm transition-all text-[8px] font-black text-slate-900 placeholder:text-slate-400 uppercase tracking-[0.3em]"
           />
           <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-white/30 via-transparent to-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-500 border border-white/20" />
         </div>
@@ -198,7 +201,8 @@ export const SubjectDetail: React.FC = () => {
               <div className="flex items-center gap-4 md:gap-6 relative z-10">
                 <button 
                   onClick={() => toggleTopicCompletion(topic.id)}
-                  className={`transition-all active:scale-90 flex-shrink-0 ${topic.isCompleted ? 'text-emerald-500' : 'text-slate-200 group-hover:text-indigo-400'}`}
+                  aria-label={topic.isCompleted ? "Mark as incomplete" : "Mark as complete"}
+                  className={`transition-all active:scale-90 flex-shrink-0 ${topic.isCompleted ? 'text-emerald-500' : 'text-slate-300 group-hover:text-indigo-400'}`}
                 >
                   {topic.isCompleted ? <CheckCircle2 size={32} /> : <Circle size={32} />}
                 </button>
@@ -221,6 +225,7 @@ export const SubjectDetail: React.FC = () => {
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
                   <button 
                     onClick={() => togglePinTopic(topic.id)}
+                    aria-label={topic.isPinned ? "Unpin topic" : "Pin topic"}
                     className={`w-9 h-9 md:w-11 md:h-11 rounded-xl md:rounded-2xl flex items-center justify-center transition-all ${topic.isPinned ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white border border-slate-100 text-slate-300 hover:text-indigo-400 hover:bg-indigo-50'}`}
                   >
                     <Pin size={16} className={topic.isPinned ? 'fill-current' : ''} />
@@ -228,12 +233,13 @@ export const SubjectDetail: React.FC = () => {
                   {canDelete && (
                     <button 
                       onClick={() => handleDeleteTopic(topic.id)}
+                      aria-label="Delete topic"
                       className="w-9 h-9 md:w-11 md:h-11 bg-white border border-slate-100 text-slate-300 rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all"
                     >
                       <Trash2 size={16} />
                     </button>
                   )}
-                  <Link to={`/topic/${topic.id}`} className="w-9 h-9 md:w-11 md:h-11 bg-slate-900 text-white rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-indigo-600 transition-all shadow-lg active:scale-95">
+                  <Link to={`/topic/${topic.id}`} className="w-9 h-9 md:w-11 md:h-11 bg-slate-900 text-white rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-indigo-600 transition-all shadow-lg active:scale-95" aria-label="Open topic">
                     <ChevronRight size={18} />
                   </Link>
                 </div>
@@ -245,7 +251,7 @@ export const SubjectDetail: React.FC = () => {
             <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 text-slate-100 shadow-sm">
               <Box size={40} />
             </div>
-            <h4 className="text-xl font-black text-slate-300 tracking-tight px-4">Workspace Empty</h4>
+            <h4 className="text-xl font-black text-slate-400 tracking-tight px-4">Workspace Empty</h4>
             <p className="text-slate-400 text-[10px] uppercase font-black tracking-widest max-w-[200px] mx-auto mt-2 leading-relaxed px-4">Deploy your first learning unit to begin.</p>
           </div>
         )}
@@ -256,6 +262,7 @@ export const SubjectDetail: React.FC = () => {
         <div className="fixed bottom-24 right-6 md:bottom-12 md:right-12 z-40">
           <button 
             onClick={() => setIsModalOpen(true)}
+            aria-label="Add New Topic"
             className={`w-14 h-14 md:w-16 md:h-16 ${subject.color} text-white rounded-2xl md:rounded-3xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] flex items-center justify-center hover:brightness-110 active:scale-90 transition-all hover:rotate-3 group ring-8 ring-white/20 backdrop-blur-sm`}
           >
             <Plus size={28} className="transition-transform group-hover:scale-125 group-hover:rotate-90" />
@@ -281,7 +288,7 @@ export const SubjectDetail: React.FC = () => {
 
             <div className="p-5 bg-white/95 backdrop-blur-2xl flex flex-col gap-4">
               <div className="space-y-1">
-                <label className="text-[7px] font-black text-slate-400 uppercase tracking-[0.4em] ml-1 flex items-center gap-1.5">
+                <label className="text-[7px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1 flex items-center gap-1.5">
                   <Zap size={9} className="text-indigo-400 fill-current" /> Designation
                 </label>
                 <input 
@@ -290,19 +297,19 @@ export const SubjectDetail: React.FC = () => {
                   value={newTopic.name}
                   onChange={e => setNewTopic({...newTopic, name: e.target.value})}
                   placeholder="Module Title..."
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-xs font-black text-slate-900 focus:bg-white focus:border-indigo-400/30 outline-none transition-all placeholder:text-slate-200"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-xs font-black text-slate-900 focus:bg-white focus:border-indigo-400/30 outline-none transition-all placeholder:text-slate-300"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[7px] font-black text-slate-400 uppercase tracking-[0.4em] ml-1 flex items-center gap-1.5">
+                <label className="text-[7px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1 flex items-center gap-1.5">
                   <FileText size={9} className="text-indigo-400" /> Objectives
                 </label>
                 <textarea 
                   value={newTopic.description}
                   onChange={e => setNewTopic({...newTopic, description: e.target.value})}
                   placeholder="Key concepts..."
-                  className="w-full h-20 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-medium text-slate-700 focus:bg-white focus:border-indigo-400/30 outline-none resize-none transition-all placeholder:text-slate-200"
+                  className="w-full h-20 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-medium text-slate-700 focus:bg-white focus:border-indigo-400/30 outline-none resize-none transition-all placeholder:text-slate-300"
                 />
               </div>
 
@@ -320,6 +327,7 @@ export const SubjectDetail: React.FC = () => {
 
             <button 
               onClick={() => setIsModalOpen(false)} 
+              aria-label="Close"
               className="absolute top-2.5 right-2.5 w-6 h-6 bg-white/10 backdrop-blur-md text-white/50 rounded-full flex items-center justify-center transition-all hover:bg-white hover:text-slate-900 z-50 group border border-white/10"
             >
               <X size={12} className="group-hover:rotate-90 transition-transform duration-500" />

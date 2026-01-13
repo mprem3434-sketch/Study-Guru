@@ -21,7 +21,13 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
   const offset = circumference - (progress / 100) * circumference;
 
   return (
-    <div className={`relative inline-flex items-center justify-center ${className}`}>
+    <div 
+      className={`relative inline-flex items-center justify-center ${className}`}
+      role="progressbar"
+      aria-valuenow={progress}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <svg width={size} height={size} className="transform -rotate-90">
         <circle
           cx={size / 2}

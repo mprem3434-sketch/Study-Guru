@@ -324,7 +324,7 @@ export const LoginPage: React.FC = () => {
                             value={userName}
                             onChange={(e) => setUserName(e.target.value)}
                             placeholder="e.g. Alex Doe" 
-                            className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm"
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm"
                           />
                         </div>
                       </div>
@@ -343,7 +343,7 @@ export const LoginPage: React.FC = () => {
                         value={userId}
                         onChange={(e) => setUserId(e.target.value)}
                         placeholder={activeTab === 'TEACHER' ? 'teacher@school.com' : 'student@id.com'}
-                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm"
+                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm"
                       />
                     </div>
                   </div>
@@ -412,7 +412,7 @@ export const LoginPage: React.FC = () => {
                                 maxLength={10}
                                 onChange={(e) => setUserMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                                 placeholder="0000000000" 
-                                className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-24 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm tracking-widest"
+                                className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-24 pr-4 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm tracking-widest"
                              />
                           </div>
                       </div>
@@ -427,7 +427,7 @@ export const LoginPage: React.FC = () => {
                             type="date" 
                             value={userDob}
                             onChange={(e) => setUserDob(e.target.value)}
-                            className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm [color-scheme:dark]"
+                            className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm [color-scheme:dark]"
                           />
                         </div>
                       </div>
@@ -445,10 +445,11 @@ export const LoginPage: React.FC = () => {
                         value={userPassword}
                         onChange={(e) => setUserPassword(e.target.value)}
                         placeholder="••••••••" 
-                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm"
+                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all font-bold text-sm"
                       />
                       <button 
                         type="button"
+                        aria-label={userShowPassword ? "Hide password" : "Show password"}
                         onClick={() => setUserShowPassword(!userShowPassword)}
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                       >
@@ -523,7 +524,7 @@ export const LoginPage: React.FC = () => {
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="admin@studyguru.com" 
                         required
-                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium text-sm"
+                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium text-sm"
                       />
                     </div>
                   </div>
@@ -540,10 +541,11 @@ export const LoginPage: React.FC = () => {
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••" 
                         required
-                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium text-sm"
+                        className="w-full bg-slate-950/50 border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all font-medium text-sm"
                       />
                       <button 
                         type="button"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                       >
