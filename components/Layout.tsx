@@ -6,11 +6,12 @@ import {
   Home, BookOpen, Star, BarChart3, Settings, Search, X, 
   Download, ArrowLeft, Video, FileText, Hash, Zap,
   Menu as MenuIcon, ChevronLeft, ChevronRight, Sparkles,
-  Command, Box, Activity, ShieldCheck, LogOut, User, GraduationCap
+  Command, Box, Activity, ShieldCheck, LogOut, User, GraduationCap, Loader2
 } from 'lucide-react';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { state, logout } = useStore();
+  // Extract isLoaded from the store
+  const { state, logout, isLoaded } = useStore();
   const [searchActive, setSearchActive] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [query, setQuery] = useState('');
@@ -41,19 +42,23 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     document.title = title;
   }, [location]);
 
-  // If no user is logged in, and we are not on the login page, redirect
+  // Security Check: Redirect if not logged in
+  // CRITICAL FIX: Only run this check if isLoaded is true.
+  // This prevents the app from redirecting to login while it's still fetching the user from IndexedDB.
   useEffect(() => {
-    if (!state.currentUser && location.pathname !== '/login') {
-      navigate('/login');
+    if (isLoaded) {
+        if (!state.currentUser && location.pathname !== '/login') {
+          navigate('/login');
+        }
     }
-  }, [state.currentUser, location.pathname, navigate]);
+  }, [state.currentUser, location.pathname, navigate, isLoaded]);
 
   // Redirect First-Time Students to Settings/Profile Page
   useEffect(() => {
-    if (state.currentUser?.role === 'USER' && state.currentUser.isFirstLogin && location.pathname !== '/settings') {
+    if (isLoaded && state.currentUser?.role === 'USER' && state.currentUser.isFirstLogin && location.pathname !== '/settings') {
         navigate('/settings', { replace: true });
     }
-  }, [state.currentUser, location.pathname, navigate]);
+  }, [state.currentUser, location.pathname, navigate, isLoaded]);
 
   // Tablet Optimization: Auto-collapse on standard tablet widths
   useEffect(() => {
@@ -86,8 +91,23 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     navigate('/login');
   };
 
+  // LOADING STATE:
+  // If the app is still loading data from the database, show a full-screen loader.
+  // This prevents the UI from flashing "Login" before the user is restored.
+  if (!isLoaded) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
+        <div className="w-16 h-16 bg-white rounded-3xl shadow-xl flex items-center justify-center mb-6 animate-in fade-in zoom-in duration-500">
+          <Loader2 className="animate-spin text-indigo-600" size={32} />
+        </div>
+        <h2 className="text-xl font-black text-slate-900 tracking-tight">Study Guru</h2>
+        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mt-2">Restoring Session...</p>
+      </div>
+    );
+  }
+
   // If on login page, render children directly without layout
-  // This check must happen AFTER all hooks are called
+  // This check must happen AFTER loading check
   if (location.pathname === '/login') {
     return <>{children}</>;
   }
