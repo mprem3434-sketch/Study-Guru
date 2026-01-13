@@ -13,6 +13,10 @@ import { UserStatus, RegisteredUser, UserRole } from '../types.ts';
 // Helper function to generate IDs
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
+// Expected CSV Header Schemas for Validation
+const STUDENT_CSV_HEADERS = ["Avatar", "Name", "ID/Email", "Mobile", "Date of Birth", "Class", "Section", "Password", "Status"];
+const TEACHER_CSV_HEADERS = ["Photo of teacher", "Name", "Email ID", "Mobile Number", "Date of Birth", "Core Subjects", "Password", "Status"];
+
 export const AdminDashboard: React.FC = () => {
   const { state, updateUserStatus, adminAssignClassToTeacher, adminAddUser, adminAddUsersBulk, adminDeleteUser, adminDeleteUsersBulk } = useStore();
   const navigate = useNavigate();
@@ -205,7 +209,47 @@ export const AdminDashboard: React.FC = () => {
           let content = event.target?.result as string;
           content = content.replace(/^\uFEFF/, '');
           const lines = content.split(/\r\n|\n|\r/).filter(line => line.trim().length > 0);
-          if (lines.length < 2) return;
+          
+          if (lines.length < 2) {
+              alert("Empty or invalid CSV file.");
+              if (csvInputRef.current) csvInputRef.current.value = '';
+              return;
+          }
+
+          // --- HEADER VALIDATION LOGIC ---
+          const headerRow = lines[0];
+          const uploadedHeaders = parseCSVRow(headerRow).map(h => h.replace(/^"|"$/g, '').trim());
+          const expectedHeaders = registryTab === 'STUDENTS' ? STUDENT_CSV_HEADERS : TEACHER_CSV_HEADERS;
+
+          // Check if key columns match based on the active tab
+          let isValidHeader = true;
+          
+          if (registryTab === 'STUDENTS') {
+              // Ensure we have "Class" and "Section" and NOT "Core Subjects"
+              const hasClass = uploadedHeaders.some(h => h.toLowerCase() === 'class');
+              const hasTeacherField = uploadedHeaders.some(h => h.toLowerCase().includes('subjects'));
+              if (!hasClass || hasTeacherField) isValidHeader = false;
+          } else {
+              // Ensure we have "Core Subjects" and NOT "Section"
+              const hasSubjects = uploadedHeaders.some(h => h.toLowerCase().includes('subjects'));
+              const hasStudentField = uploadedHeaders.some(h => h.toLowerCase() === 'section');
+              if (!hasSubjects || hasStudentField) isValidHeader = false;
+          }
+
+          // Strict count check
+          if (uploadedHeaders.length !== expectedHeaders.length) isValidHeader = false;
+
+          if (!isValidHeader) {
+              alert(
+                  `REGISTRY MISMATCH ERROR:\n\nYou are trying to import into the ${registryTab} registry, but the file columns do not match.\n\n` +
+                  `Expected Headers for ${registryTab}:\n${expectedHeaders.join(', ')}\n\n` +
+                  `Found Headers:\n${uploadedHeaders.join(', ')}\n\n` +
+                  `Please check if you selected the correct file.`
+              );
+              if (csvInputRef.current) csvInputRef.current.value = '';
+              return;
+          }
+          // -------------------------------
           
           const dataRows = lines.slice(1);
           const usersToAdd: RegisteredUser[] = [];
@@ -272,7 +316,7 @@ export const AdminDashboard: React.FC = () => {
           
           if (usersToAdd.length > 0) {
               await adminAddUsersBulk(usersToAdd);
-              alert(`Imported ${usersToAdd.length} new records.${duplicatesCount > 0 ? ` Skipped ${duplicatesCount} duplicates.` : ''}`);
+              alert(`Success: Imported ${usersToAdd.length} new records into ${registryTab}.\n${duplicatesCount > 0 ? `(Skipped ${duplicatesCount} duplicates)` : ''}`);
           } else {
               alert(duplicatesCount > 0 ? `All ${duplicatesCount} records were duplicates and skipped.` : "No valid records found to import.");
           }
@@ -294,7 +338,7 @@ export const AdminDashboard: React.FC = () => {
 
       if (registryTab === 'STUDENTS') {
           // Student Pattern
-          headers = ["Avatar", "Name", "ID/Email", "Mobile", "Date of Birth", "Class", "Section", "Password", "Status"];
+          headers = STUDENT_CSV_HEADERS;
           rows = dataToExport.map(u => [
               `"${u.avatar || ''}"`,
               `"${u.name}"`,
@@ -308,7 +352,7 @@ export const AdminDashboard: React.FC = () => {
           ]);
       } else {
           // Teacher Pattern
-          headers = ["Photo of teacher", "Name", "Email ID", "Mobile Number", "Date of Birth", "Core Subjects", "Password", "Status"];
+          headers = TEACHER_CSV_HEADERS;
           rows = dataToExport.map(u => [
               `"${u.avatar || ''}"`,
               `"${u.name}"`,
