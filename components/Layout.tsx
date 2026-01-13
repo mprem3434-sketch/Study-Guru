@@ -17,6 +17,30 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Dynamic SEO Title Updates
+  useEffect(() => {
+    const path = location.pathname;
+    let title = 'Study Guru | Premium Learning Hub';
+    
+    if (path === '/') title = 'Dashboard | Study Guru';
+    else if (path.startsWith('/admin/student')) title = 'Student Profile | Study Guru';
+    else if (path.startsWith('/admin/fees')) title = 'Fee Management | Study Guru';
+    else if (path.startsWith('/admin/revenue')) title = 'Revenue Analytics | Study Guru';
+    else if (path.startsWith('/admin')) title = 'Admin Console | Study Guru';
+    else if (path.startsWith('/teacher')) title = 'Faculty Dashboard | Study Guru';
+    else if (path.startsWith('/subject')) title = 'Module Content | Study Guru';
+    else if (path.startsWith('/topic')) title = 'Study Session | Study Guru';
+    else if (path === '/subjects') title = 'Curriculum Modules | Study Guru';
+    else if (path === '/favorites') title = 'My Favorites | Study Guru';
+    else if (path === '/downloads') title = 'Offline Vault | Study Guru';
+    else if (path === '/stats') title = 'Performance Analytics | Study Guru';
+    else if (path === '/settings') title = 'Settings & Config | Study Guru';
+    else if (path === '/search') title = 'Search Results | Study Guru';
+    else if (path === '/login') title = 'Secure Login | Study Guru';
+
+    document.title = title;
+  }, [location]);
+
   // If no user is logged in, and we are not on the login page, redirect
   useEffect(() => {
     if (!state.currentUser && location.pathname !== '/login') {
