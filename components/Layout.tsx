@@ -24,6 +24,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     }
   }, [state.currentUser, location.pathname, navigate]);
 
+  // Redirect First-Time Students to Settings/Profile Page
+  useEffect(() => {
+    if (state.currentUser?.role === 'USER' && state.currentUser.isFirstLogin && location.pathname !== '/settings') {
+        navigate('/settings', { replace: true });
+    }
+  }, [state.currentUser, location.pathname, navigate]);
+
   // Tablet Optimization: Auto-collapse on standard tablet widths
   useEffect(() => {
     const handleResize = () => {

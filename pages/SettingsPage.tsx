@@ -6,12 +6,12 @@ import {
   Database, Type, MousePointer2, Info, ShieldCheck, 
   ChevronRight, Sparkles, Monitor, Activity, HardDrive,
   User, Lock, CheckCircle2, AlertCircle, KeyRound, Camera,
-  Eye, EyeOff, Calendar, Loader2, GraduationCap, Layout, Check, BookOpen
+  Eye, EyeOff, Calendar, Loader2, GraduationCap, Layout, Check, BookOpen, FileText, UploadCloud
 } from 'lucide-react';
-import { ReaderTheme } from '../types.ts';
+import { ReaderTheme, StudentDocuments } from '../types.ts';
 
 export const SettingsPage: React.FC = () => {
-  const { state, updateState, exportData, importData, clearAllDownloads, changePassword, updateProfileAvatar, updateUserDOB, updateUserMobile, updateStudentClass, updateTeacherSubjects } = useStore();
+  const { state, updateState, exportData, importData, clearAllDownloads, changePassword, updateProfileAvatar, updateUserDOB, updateUserMobile, updateStudentClass, updateTeacherSubjects, updateUserDocuments, completeUserOnboarding } = useStore();
 
   // Password Management State
   const [oldPass, setOldPass] = useState('');
@@ -33,6 +33,8 @@ export const SettingsPage: React.FC = () => {
   const [isSavingSubjects, setIsSavingSubjects] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [selectedDocType, setSelectedDocType] = useState<keyof StudentDocuments | null>(null);
 
   // Retrieve current user details if available
   const userDetails = state.currentUser?.id 
@@ -55,6 +57,14 @@ export const SettingsPage: React.FC = () => {
     'Hindi', 'English', 'Maths', 'Science', 'Sanskrit', 
     'Social Science', 'Computer', 'Drawing', 'Dancing', 
     'Singing', 'Gujrati', 'Marathi', 'Health & Physical', 'Games'
+  ];
+
+  const REQUIRED_DOCS: { key: keyof StudentDocuments; label: string }[] = [
+      { key: 'adhaarCard', label: 'Adhaar Card' },
+      { key: 'birthCertificate', label: 'Birth Certificate' },
+      { key: 'previousMarksheet', label: 'Previous Class Marksheet' },
+      { key: 'transferCertificate', label: 'Transfer Certificate (TC)' },
+      { key: 'categoryCertificate', label: 'Special Category Certificate' },
   ];
 
   const togglePro = () => {
@@ -110,6 +120,42 @@ export const SettingsPage: React.FC = () => {
        }
        await updateProfileAvatar(file);
     }
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && selectedDocType && userDetails) {
+          if (file.size > 5 * 1024 * 1024) {
+              alert("Document too large. Limit is 5MB.");
+              return;
+          }
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+              const base64Data = ev.target?.result as string;
+              const success = await updateUserDocuments(userDetails.id, { [selectedDocType]: base64Data });
+              if (success) {
+                  alert("Document uploaded and locked successfully.");
+                  // If it's the first login, check if we should complete onboarding
+                  if (userDetails.isFirstLogin) {
+                      await completeUserOnboarding();
+                  }
+              } else {
+                  alert("Failed to save document.");
+              }
+              setSelectedDocType(null); // Reset selection
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const triggerDocUpload = (key: keyof StudentDocuments) => {
+      setSelectedDocType(key);
+      setTimeout(() => docInputRef.current?.click(), 100);
+  };
+
+  const viewDocument = (base64Data: string) => {
+      const win = window.open();
+      win?.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
   };
 
   const handleDobSave = async (e: React.MouseEvent) => {
@@ -204,6 +250,15 @@ export const SettingsPage: React.FC = () => {
         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 mb-1 block">Configuration</span>
         <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Settings</h2>
         <p className="text-slate-500 text-sm font-medium mt-1">Personalize your learning architecture.</p>
+        {isStudent && userDetails?.isFirstLogin && (
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 animate-pulse">
+                <Info className="text-amber-600 shrink-0" size={20} />
+                <div>
+                    <h4 className="font-bold text-amber-800 text-sm">Action Required</h4>
+                    <p className="text-xs text-amber-700 mt-1">Please verify your personal details and upload required documents below to complete your student profile.</p>
+                </div>
+            </div>
+        )}
       </header>
 
       {/* Ultra-Premium Pro Access Card */}
@@ -497,6 +552,58 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
           </section>
+        )}
+
+        {isStudent && userDetails && (
+            <section className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8 h-fit">
+                <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-3">
+                        <FileText className="text-indigo-600" size={18} /> Academic Documents
+                    </h4>
+                    {userDetails.isFirstLogin && (
+                        <button 
+                            onClick={completeUserOnboarding}
+                            className="text-[9px] font-black uppercase text-indigo-600 hover:underline"
+                        >
+                            Skip & Finish Later
+                        </button>
+                    )}
+                </div>
+
+                <div className="space-y-3">
+                    {REQUIRED_DOCS.map((doc) => {
+                        const existingDoc = userDetails.documents?.[doc.key];
+                        return (
+                            <div key={doc.key} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${existingDoc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                                        {existingDoc ? <Check size={16} /> : <UploadCloud size={16} />}
+                                    </div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700 max-w-[120px] md:max-w-none truncate">{doc.label}</span>
+                                </div>
+                                
+                                {existingDoc ? (
+                                    <button 
+                                        onClick={() => viewDocument(existingDoc)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-emerald-100 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-emerald-50 transition-all"
+                                    >
+                                        <Eye size={12} /> View
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => triggerDocUpload(doc.key)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+                                    >
+                                        <Upload size={12} /> Upload
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                    <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDocumentUpload} />
+                    <p className="text-[9px] text-slate-400 text-center pt-2">Accepted: PDF, JPG, PNG (Max 5MB). Uploads are locked once saved.</p>
+                </div>
+            </section>
         )}
 
         {/* Preference Deck */}

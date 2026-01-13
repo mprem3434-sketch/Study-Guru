@@ -53,7 +53,7 @@ export const FeesManagement: React.FC = () => {
     return students.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)).slice(0, 5);
   }, [studentSearchTerm, students]);
 
-  // Calculate Student Financial Summary
+  // Calculate Student Financial Summary (Individual)
   const studentBalance = useMemo(() => {
     if (!selectedStudent) return { total: 0, paid: 0, balance: 0 };
     
@@ -78,14 +78,32 @@ export const FeesManagement: React.FC = () => {
     };
   }, [selectedStudent, state.ledger, state.classFees]);
 
-  // Calculate Global Financial Stats
+  // Calculate Global Financial Stats including Real-time Pending Fees
   const stats = useMemo(() => {
     const income = state.ledger.filter(t => t.type === 'INCOME').reduce((a, b) => a + b.amount, 0);
     const expense = state.ledger.filter(t => t.type === 'EXPENSE').reduce((a, b) => a + b.amount, 0);
-    const pendingFees = state.ledger.filter(t => t.category === 'STUDENT_FEES' && t.status === 'PENDING').reduce((a, b) => a + b.amount, 0);
     
-    return { income, expense, balance: income - expense, pendingFees };
-  }, [state.ledger]);
+    // Calculate Total Pending Fees based on Actual Student Balances
+    // (Total Fee for each student - Amount Paid by that student)
+    let totalPending = 0;
+    
+    students.forEach(s => {
+       // 1. Determine Fee
+       const baseFee = s.customFee ?? (state.classFees[s.studentClass || ''] || 0);
+       // 2. Add Tax (18%)
+       const totalFee = baseFee * 1.18;
+       
+       // 3. Subtract Paid
+       const paid = state.ledger
+         .filter(t => t.payerId === s.id && t.category === 'STUDENT_FEES' && t.status === 'PAID')
+         .reduce((sum, t) => sum + t.amount, 0);
+         
+       const balance = Math.max(0, totalFee - paid);
+       totalPending += balance;
+    });
+    
+    return { income, expense, balance: income - expense, pendingFees: Math.round(totalPending) };
+  }, [state.ledger, state.classFees, students]);
 
   // Filtered Ledger
   const filteredLedger = useMemo(() => {
@@ -98,8 +116,9 @@ export const FeesManagement: React.FC = () => {
       list = list.filter(t => 
         t.description.toLowerCase().includes(q) || 
         t.payerName.toLowerCase().includes(q) ||
-        t.payerClass?.toLowerCase().includes(q) ||
-        t.payerId?.toLowerCase().includes(q)
+        (t.payerClass && t.payerClass.toLowerCase().includes(q)) ||
+        (t.payerId && t.payerId.toLowerCase().includes(q)) ||
+        (t.subCategory && t.subCategory.toLowerCase().includes(q))
       );
     }
     return list;
@@ -268,16 +287,23 @@ export const FeesManagement: React.FC = () => {
         <>
           {/* Stats Deck */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 px-2">
-            <StatsCard label="Total Revenue" value={`₹${stats.income.toLocaleString()}`} sub="Current Month" icon={<TrendingUp size={24} />} color="emerald" />
+            <StatsCard 
+                label="Total Revenue" 
+                value={`₹${stats.income.toLocaleString()}`} 
+                sub="Tap for Analytics" 
+                icon={<TrendingUp size={24} />} 
+                color="emerald" 
+                onClick={() => navigate('/admin/revenue')}
+            />
             <StatsCard label="Total Outflow" value={`₹${stats.expense.toLocaleString()}`} sub="Salaries & Bills" icon={<TrendingDown size={24} />} color="rose" />
             <StatsCard label="Net Balance" value={`₹${stats.balance.toLocaleString()}`} sub="School Liquidity" icon={<Wallet size={24} />} color="indigo" />
-            <StatsCard label="Pending Fees" value={`₹${stats.pendingFees.toLocaleString()}`} sub="Target Students" icon={<Clock size={24} />} color="amber" />
+            <StatsCard label="Pending Fees" value={`₹${stats.pendingFees.toLocaleString()}`} sub="Total Outstanding" icon={<Clock size={24} />} color="amber" />
           </div>
 
           {/* Table Section */}
           <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
             
-            {/* Search Bar Feature */}
+            {/* 1. Global Search Bar */}
             <div className="mb-6">
                 <div className="relative group w-full">
                     <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center gap-3 text-slate-400">
@@ -302,7 +328,7 @@ export const FeesManagement: React.FC = () => {
                 </div>
             </div>
 
-            {/* Category Filter - Wrapped Layout */}
+            {/* 2. Redesigned Category Filter (Wrapping) */}
             <div className="mb-8">
                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Filter by Category</p>
                <div className="flex flex-wrap gap-2">
@@ -437,6 +463,7 @@ export const FeesManagement: React.FC = () => {
       {/* Add Transaction Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+           {/* ... modal content same as before ... */}
            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-xl shadow-2xl animate-in zoom-in-95 relative overflow-hidden flex flex-col max-h-[90vh]">
               <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-600" />
               
@@ -568,6 +595,7 @@ export const FeesManagement: React.FC = () => {
       {/* Receipt View Modal */}
       {showReceipt && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[400] flex items-center justify-center p-4 overflow-y-auto">
+            {/* ... same receipt modal code as before ... */}
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-4 relative animate-in zoom-in-95 duration-500 my-4"> 
                 <button onClick={() => setShowReceipt(null)} className="absolute top-3 right-3 p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={20} /></button>
                 
@@ -691,7 +719,7 @@ export const FeesManagement: React.FC = () => {
   );
 };
 
-const StatsCard = ({ label, value, sub, icon, color }: { label: string; value: string; sub: string; icon: React.ReactNode; color: string }) => {
+const StatsCard = ({ label, value, sub, icon, color, onClick }: { label: string; value: string; sub: string; icon: React.ReactNode; color: string; onClick?: () => void }) => {
   const themes: Record<string, string> = {
     emerald: 'text-emerald-600 bg-emerald-50',
     rose: 'text-rose-600 bg-rose-50',
@@ -700,7 +728,10 @@ const StatsCard = ({ label, value, sub, icon, color }: { label: string; value: s
   };
 
   return (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4 group hover:border-indigo-100 transition-colors">
+    <div 
+        onClick={onClick}
+        className={`bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4 group hover:border-indigo-100 transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-1' : ''}`}
+    >
        <div className="flex items-start justify-between">
           <div className={`p-3 rounded-2xl ${themes[color] || 'bg-slate-50 text-slate-500'}`}>{icon}</div>
           <Info size={14} className="text-slate-200 group-hover:text-slate-400" />

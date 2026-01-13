@@ -16,6 +16,7 @@ import { AdminDashboard } from './pages/AdminDashboard.tsx';
 import { AdminStudentDetail } from './pages/AdminStudentDetail.tsx';
 import { TeacherDashboard } from './pages/TeacherDashboard.tsx';
 import { FeesManagement } from './pages/FeesManagement.tsx';
+import { RevenueAnalytics } from './pages/RevenueAnalytics.tsx';
 
 const App: React.FC = () => {
   return (
@@ -28,6 +29,7 @@ const App: React.FC = () => {
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/admin/student/:id" element={<AdminStudentDetail />} />
           <Route path="/admin/fees" element={<FeesManagement />} />
+          <Route path="/admin/revenue" element={<RevenueAnalytics />} />
           <Route path="/subjects" element={<SubjectsPage />} />
           <Route path="/subject/:id" element={<SubjectDetail />} />
           <Route path="/topic/:id" element={<TopicView />} />

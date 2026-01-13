@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { AppState, UserRole, UserStatus, MaterialType, ReaderTheme, Subject, Topic, Material, User, RegisteredUser, Transaction } from './types.ts';
+import { AppState, UserRole, UserStatus, MaterialType, ReaderTheme, Subject, Topic, Material, User, RegisteredUser, Transaction, StudentDocuments } from './types.ts';
 import { saveState, loadState, saveFile, getFile, deleteFile } from './db.ts';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -45,11 +45,14 @@ interface StoreState {
   updateUserMobile: (mobile: string) => Promise<boolean>;
   updateStudentClass: (studentClass: string) => Promise<boolean>;
   updateTeacherSubjects: (subjects: string[]) => Promise<boolean>;
+  updateUserDocuments: (userId: string, documents: Partial<StudentDocuments>) => Promise<boolean>;
+  completeUserOnboarding: () => Promise<void>;
   
   // Admin Actions
   adminAddUser: (userData: Omit<RegisteredUser, 'joinedAt'>) => Promise<boolean>;
   adminAddUsersBulk: (users: RegisteredUser[]) => Promise<void>;
   adminDeleteUser: (id: string) => Promise<void>;
+  adminDeleteUsersBulk: (ids: string[]) => Promise<void>;
   adminUpdateUser: (originalId: string, updates: Partial<RegisteredUser>) => Promise<boolean>;
   adminAssignClassToTeacher: (teacherId: string, assignedClasses: string[]) => Promise<void>;
   
@@ -104,7 +107,8 @@ export const useStore = create<StoreState>((set, get) => ({
             studentClass: registered?.studentClass,
             studentSection: registered?.studentSection,
             assignedClasses: registered?.assignedClasses,
-            subjects: registered?.subjects
+            subjects: registered?.subjects,
+            isFirstLogin: registered?.isFirstLogin ?? false
         }
       }
     }));
@@ -135,7 +139,9 @@ export const useStore = create<StoreState>((set, get) => ({
       assignedClasses: [],
       joinedAt: Date.now(),
       status: 'PENDING',
-      role: role
+      role: role,
+      isFirstLogin: true, // Default true for new signups
+      documents: {}
     };
     
     set(store => ({
@@ -164,7 +170,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const newUser: RegisteredUser = {
         ...userData,
-        joinedAt: Date.now()
+        joinedAt: Date.now(),
+        isFirstLogin: true,
+        documents: {}
     };
 
     set(store => ({
@@ -177,10 +185,17 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   adminAddUsersBulk: async (newUsers) => {
+    // Ensure bulk imported users have default doc structure
+    const processedUsers = newUsers.map(u => ({
+        ...u,
+        isFirstLogin: true,
+        documents: u.documents || {}
+    }));
+
     set(store => ({
         state: {
             ...store.state,
-            registeredUsers: [...store.state.registeredUsers, ...newUsers]
+            registeredUsers: [...store.state.registeredUsers, ...processedUsers]
         }
     }));
   },
@@ -190,6 +205,15 @@ export const useStore = create<StoreState>((set, get) => ({
           state: {
               ...store.state,
               registeredUsers: store.state.registeredUsers.filter(u => u.id !== id)
+          }
+      }));
+  },
+
+  adminDeleteUsersBulk: async (ids) => {
+      set(store => ({
+          state: {
+              ...store.state,
+              registeredUsers: store.state.registeredUsers.filter(u => !ids.includes(u.id))
           }
       }));
   },
@@ -383,6 +407,48 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     }));
     return true;
+  },
+
+  updateUserDocuments: async (userId, documents) => {
+      const { state } = get();
+      
+      const newRegisteredUsers = state.registeredUsers.map(u => {
+          if (u.id === userId) {
+              return { 
+                  ...u, 
+                  documents: { ...u.documents, ...documents }
+              };
+          }
+          return u;
+      });
+
+      set(store => ({
+          state: {
+              ...store.state,
+              registeredUsers: newRegisteredUsers
+          }
+      }));
+      return true;
+  },
+
+  completeUserOnboarding: async () => {
+      const { state } = get();
+      if (!state.currentUser) return;
+
+      const newRegisteredUsers = state.registeredUsers.map(u => {
+          if (u.id === state.currentUser!.id) {
+              return { ...u, isFirstLogin: false };
+          }
+          return u;
+      });
+
+      set(store => ({
+          state: {
+              ...store.state,
+              registeredUsers: newRegisteredUsers,
+              currentUser: { ...store.state.currentUser!, isFirstLogin: false }
+          }
+      }));
   },
 
   addSubject: (name, color, icon, targetClass) => {

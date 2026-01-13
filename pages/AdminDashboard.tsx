@@ -1,12 +1,12 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useStore } from '../store.ts';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ShieldCheck, Users, Database, FileText, 
   Settings, ChevronRight, Activity, Plus,
   Layers, HardDrive, Cpu, Lock, User, CheckCircle2, Ban, Clock, Loader2, AlertCircle, Eye, GraduationCap, Filter, Layout, Search, X, Download, UploadCloud, UserPlus, Trash, Trash2,
-  Banknote, ReceiptIndianRupee, AlertTriangle
+  Banknote, ReceiptIndianRupee, AlertTriangle, Square, CheckSquare
 } from 'lucide-react';
 import { UserStatus, RegisteredUser, UserRole } from '../types.ts';
 
@@ -14,7 +14,7 @@ import { UserStatus, RegisteredUser, UserRole } from '../types.ts';
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 export const AdminDashboard: React.FC = () => {
-  const { state, updateUserStatus, adminAssignClassToTeacher, adminAddUser, adminAddUsersBulk, adminDeleteUser } = useStore();
+  const { state, updateUserStatus, adminAssignClassToTeacher, adminAddUser, adminAddUsersBulk, adminDeleteUser, adminDeleteUsersBulk } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -25,10 +25,13 @@ export const AdminDashboard: React.FC = () => {
   const [classFilter, setClassFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
   // Modals State
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean, id: string | null, name: string | null, role: string | null }>({
-      isOpen: false, id: null, name: null, role: null
+  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean, id: string | null, ids?: string[], name: string | null, role: string | null }>({
+      isOpen: false, id: null, ids: undefined, name: null, role: null
   });
   
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +72,11 @@ export const AdminDashboard: React.FC = () => {
     });
   }, [filteredRegistry]);
   
+  // Reset selection when tab changes
+  useEffect(() => {
+      setSelectedIds(new Set());
+  }, [registryTab]);
+
   const activeStudents = students.filter(u => u.status === 'APPROVED').length;
   const activeTeachers = teachers.filter(u => u.status === 'APPROVED').length;
   const pendingUsers = state.registeredUsers.filter(u => u.status === 'PENDING').length;
@@ -82,6 +90,27 @@ export const AdminDashboard: React.FC = () => {
   const formattedStorage = totalStorage > 1024 * 1024 
     ? `${(totalStorage / (1024 * 1024)).toFixed(2)} MB` 
     : `${(totalStorage / 1024).toFixed(2)} KB`;
+
+  // Selection Logic
+  const isAllSelected = filteredRegistry.length > 0 && selectedIds.size === filteredRegistry.length;
+
+  const toggleSelectAll = () => {
+      if (isAllSelected) {
+          setSelectedIds(new Set());
+      } else {
+          setSelectedIds(new Set(filteredRegistry.map(u => u.id)));
+      }
+  };
+
+  const toggleSelection = (id: string) => {
+      const newSet = new Set(selectedIds);
+      if (newSet.has(id)) {
+          newSet.delete(id);
+      } else {
+          newSet.add(id);
+      }
+      setSelectedIds(newSet);
+  };
 
   const handleStatusChange = async (e: React.MouseEvent, id: string, newStatus: UserStatus) => {
       e.preventDefault();
@@ -102,11 +131,25 @@ export const AdminDashboard: React.FC = () => {
       });
   };
 
+  const initiateBulkDelete = () => {
+      if (selectedIds.size === 0) return;
+      setDeleteConfirm({
+          isOpen: true,
+          id: null,
+          ids: Array.from(selectedIds),
+          name: `${selectedIds.size} Users`,
+          role: registryTab === 'STUDENTS' ? 'Students' : 'Faculty Members'
+      });
+  };
+
   const confirmDelete = async () => {
-      if (deleteConfirm.id) {
+      if (deleteConfirm.ids && deleteConfirm.ids.length > 0) {
+          await adminDeleteUsersBulk(deleteConfirm.ids);
+          setSelectedIds(new Set()); // Clear selection after bulk delete
+      } else if (deleteConfirm.id) {
           await adminDeleteUser(deleteConfirm.id);
-          setDeleteConfirm({ isOpen: false, id: null, name: null, role: null });
       }
+      setDeleteConfirm({ isOpen: false, id: null, ids: undefined, name: null, role: null });
   };
 
   const handleRowClick = (id: string) => {
@@ -368,9 +411,20 @@ export const AdminDashboard: React.FC = () => {
             </div>
             
             <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => setIsManualModalOpen(true)} className="h-9 px-4 bg-white text-indigo-600 border border-indigo-100 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-50 shadow-sm active:scale-95"><UserPlus size={14} /> Add Manual</button>
-                <button onClick={() => csvInputRef.current?.click()} className="h-9 px-4 bg-white text-emerald-600 border border-emerald-100 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-50 shadow-sm active:scale-95"><UploadCloud size={14} /> Import CSV</button>
-                <button onClick={handleCsvExport} className="h-9 px-4 bg-white text-blue-600 border border-blue-100 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-50 shadow-sm active:scale-95"><Download size={14} /> Export CSV</button>
+                {selectedIds.size > 0 ? (
+                    <button 
+                        onClick={initiateBulkDelete}
+                        className="h-9 px-4 bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-rose-600 shadow-lg shadow-rose-200 active:scale-95 animate-in zoom-in-95"
+                    >
+                        <Trash2 size={14} /> Delete Selected ({selectedIds.size})
+                    </button>
+                ) : (
+                    <>
+                        <button onClick={() => setIsManualModalOpen(true)} className="h-9 px-4 bg-white text-indigo-600 border border-indigo-100 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-50 shadow-sm active:scale-95"><UserPlus size={14} /> Add Manual</button>
+                        <button onClick={() => csvInputRef.current?.click()} className="h-9 px-4 bg-white text-emerald-600 border border-emerald-100 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-50 shadow-sm active:scale-95"><UploadCloud size={14} /> Import CSV</button>
+                        <button onClick={handleCsvExport} className="h-9 px-4 bg-white text-blue-600 border border-blue-100 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-50 shadow-sm active:scale-95"><Download size={14} /> Export CSV</button>
+                    </>
+                )}
                 <input type="file" ref={csvInputRef} className="hidden" accept=".csv" onChange={handleCsvImport} />
             </div>
         </div>
@@ -392,7 +446,12 @@ export const AdminDashboard: React.FC = () => {
         
         <div className="overflow-hidden rounded-[1.5rem] border border-slate-100">
            <div className="grid grid-cols-12 bg-slate-50 p-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
-              <div className="col-span-1">Photo</div>
+              <div className="col-span-1 flex items-center gap-2">
+                  <button onClick={toggleSelectAll} className="text-slate-400 hover:text-indigo-600 transition-colors">
+                      {isAllSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                  </button>
+                  <span>Photo</span>
+              </div>
               <div className="col-span-3">Name / ID</div>
               <div className="col-span-2">Contact</div>
               <div className="col-span-2 text-center">{registryTab === 'STUDENTS' ? 'Class / Section' : 'Assignments'}</div>
@@ -400,65 +459,79 @@ export const AdminDashboard: React.FC = () => {
               <div className="col-span-2 text-right">Actions</div>
            </div>
            <div className="max-h-[400px] overflow-y-auto">
-             {sortedUsers.map((user) => (
-                <div key={user.id} className="grid grid-cols-12 p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors items-center text-sm group">
-                    <div className="col-span-1 cursor-pointer" onClick={() => handleRowClick(user.id)}>
-                        <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center border border-slate-100">{user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <User size={14} className="text-slate-400" />}</div>
-                    </div>
-                    <div className="col-span-3 cursor-pointer" onClick={() => handleRowClick(user.id)}>
-                        <p className="font-bold text-slate-700 truncate">{user.name}</p>
-                        <p className="text-[9px] text-slate-400 font-mono truncate">{user.id}</p>
-                    </div>
-                    <div className="col-span-2 text-slate-500 font-mono text-xs truncate cursor-pointer" onClick={() => handleRowClick(user.id)}>{user.mobile || '-'}</div>
-                    <div className="col-span-2 text-center cursor-pointer" onClick={() => handleRowClick(user.id)}>
-                        {registryTab === 'STUDENTS' ? (
-                            <span className="text-[10px] font-bold text-slate-500">
-                                {user.studentClass || '-'}{user.studentSection ? `-${user.studentSection}` : ''}
-                            </span>
-                        ) : (
-                            <div className="flex flex-col gap-1 items-center">
-                                <div className="flex flex-wrap justify-center gap-1 max-w-[120px]">
-                                    {user.assignedClasses && user.assignedClasses.length > 0 ? (
-                                        <>
-                                            {user.assignedClasses.slice(0, 2).map((assign, i) => (
-                                                <span key={i} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded text-[7px] font-black uppercase tracking-wider truncate max-w-[120px]">
-                                                    {assign}
-                                                </span>
-                                            ))}
-                                            {user.assignedClasses.length > 2 && (
-                                                <span className="text-[8px] font-black text-slate-400">+{user.assignedClasses.length - 2}</span>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <span className="text-[9px] font-bold text-slate-300">-</span>
-                                    )}
-                                </div>
+             {sortedUsers.map((user) => {
+                const isSelected = selectedIds.has(user.id);
+                return (
+                    <div 
+                        key={user.id} 
+                        className={`grid grid-cols-12 p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors items-center text-sm group ${isSelected ? 'bg-indigo-50/50 hover:bg-indigo-50' : ''}`}
+                    >
+                        <div className="col-span-1 flex items-center gap-3">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); toggleSelection(user.id); }} 
+                                className={`transition-colors ${isSelected ? 'text-indigo-600' : 'text-slate-300 hover:text-slate-500'}`}
+                            >
+                                {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                            </button>
+                            <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center border border-slate-100 cursor-pointer" onClick={() => handleRowClick(user.id)}>
+                                {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <User size={14} className="text-slate-400" />}
                             </div>
-                        )}
+                        </div>
+                        <div className="col-span-3 cursor-pointer" onClick={() => handleRowClick(user.id)}>
+                            <p className="font-bold text-slate-700 truncate">{user.name}</p>
+                            <p className="text-[9px] text-slate-400 font-mono truncate">{user.id}</p>
+                        </div>
+                        <div className="col-span-2 text-slate-500 font-mono text-xs truncate cursor-pointer" onClick={() => handleRowClick(user.id)}>{user.mobile || '-'}</div>
+                        <div className="col-span-2 text-center cursor-pointer" onClick={() => handleRowClick(user.id)}>
+                            {registryTab === 'STUDENTS' ? (
+                                <span className="text-[10px] font-bold text-slate-500">
+                                    {user.studentClass || '-'}{user.studentSection ? `-${user.studentSection}` : ''}
+                                </span>
+                            ) : (
+                                <div className="flex flex-col gap-1 items-center">
+                                    <div className="flex flex-wrap justify-center gap-1 max-w-[120px]">
+                                        {user.assignedClasses && user.assignedClasses.length > 0 ? (
+                                            <>
+                                                {user.assignedClasses.slice(0, 2).map((assign, i) => (
+                                                    <span key={i} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded text-[7px] font-black uppercase tracking-wider truncate max-w-[120px]">
+                                                        {assign}
+                                                    </span>
+                                                ))}
+                                                {user.assignedClasses.length > 2 && (
+                                                    <span className="text-[8px] font-black text-slate-400">+{user.assignedClasses.length - 2}</span>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <span className="text-[9px] font-bold text-slate-300">-</span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="col-span-2 cursor-pointer" onClick={() => handleRowClick(user.id)}>
+                            <span className={`px-2 py-1 rounded-md text-[8px] font-black uppercase ${user.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{user.status}</span>
+                        </div>
+                        <div className="col-span-2 text-right flex justify-end gap-2 relative z-20">
+                            <button 
+                                type="button" 
+                                onClick={(e) => handleStatusChange(e, user.id, user.status === 'APPROVED' ? 'BLOCKED' : 'APPROVED')} 
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-sm transition-all hover:scale-105 active:scale-95 ${user.status === 'APPROVED' ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                title={user.status === 'APPROVED' ? "Block User" : "Approve User"}
+                            >
+                                {user.status === 'APPROVED' ? <Ban size={14} /> : <CheckCircle2 size={14} />}
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={(e) => initiateDelete(e, user)} 
+                                className="w-8 h-8 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all cursor-pointer shadow-sm hover:shadow-md active:scale-95"
+                                title="Delete User"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
                     </div>
-                    <div className="col-span-2 cursor-pointer" onClick={() => handleRowClick(user.id)}>
-                        <span className={`px-2 py-1 rounded-md text-[8px] font-black uppercase ${user.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{user.status}</span>
-                    </div>
-                    <div className="col-span-2 text-right flex justify-end gap-2 relative z-20">
-                        <button 
-                            type="button" 
-                            onClick={(e) => handleStatusChange(e, user.id, user.status === 'APPROVED' ? 'BLOCKED' : 'APPROVED')} 
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center shadow-sm transition-all hover:scale-105 active:scale-95 ${user.status === 'APPROVED' ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
-                            title={user.status === 'APPROVED' ? "Block User" : "Approve User"}
-                        >
-                            {user.status === 'APPROVED' ? <Ban size={14} /> : <CheckCircle2 size={14} />}
-                        </button>
-                        <button 
-                            type="button" 
-                            onClick={(e) => initiateDelete(e, user)} 
-                            className="w-8 h-8 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all cursor-pointer shadow-sm hover:shadow-md active:scale-95"
-                            title="Delete User"
-                        >
-                            <Trash2 size={14} />
-                        </button>
-                    </div>
-                </div>
-             ))}
+                );
+             })}
            </div>
         </div>
       </section>
@@ -551,7 +624,9 @@ export const AdminDashboard: React.FC = () => {
                       <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mb-2">
                           <AlertTriangle size={32} />
                       </div>
-                      <h3 className="text-xl font-black text-slate-900">Delete User?</h3>
+                      <h3 className="text-xl font-black text-slate-900">
+                          {deleteConfirm.ids ? 'Bulk Delete?' : 'Delete User?'}
+                      </h3>
                       <p className="text-sm font-medium text-slate-500 leading-relaxed">
                           Are you sure you want to permanently remove <strong className="text-slate-800">{deleteConfirm.name}</strong> from the {deleteConfirm.role} registry?
                       </p>
@@ -560,7 +635,7 @@ export const AdminDashboard: React.FC = () => {
                       </p>
                       <div className="grid grid-cols-2 gap-3 w-full mt-4">
                           <button 
-                              onClick={() => setDeleteConfirm({ isOpen: false, id: null, name: null, role: null })}
+                              onClick={() => setDeleteConfirm({ isOpen: false, id: null, ids: undefined, name: null, role: null })}
                               className="py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-200 transition-colors"
                           >
                               Cancel

@@ -5,15 +5,15 @@ import { useStore } from '../store.ts';
 import { 
   ArrowLeft, User, Mail, Phone, Calendar, Lock, 
   ShieldCheck, Ban, CheckCircle2, Clock, Trash2,
-  Copy, Eye, EyeOff, Edit3, Save, X, Camera, GraduationCap, Layout, Check, BookOpen, Layers, Plus
+  Copy, Eye, EyeOff, Edit3, Save, X, Camera, GraduationCap, Layout, Check, BookOpen, Layers, Plus, FileText, UploadCloud
 } from 'lucide-react';
-import { UserStatus } from '../types.ts';
+import { UserStatus, StudentDocuments } from '../types.ts';
 
 export const AdminStudentDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { state, updateUserStatus, adminUpdateUser } = useStore();
+  const { state, updateUserStatus, adminUpdateUser, updateUserDocuments } = useStore();
   const [showPassword, setShowPassword] = useState(false);
   
   const incomingTab = (location.state as any)?.tab;
@@ -38,6 +38,8 @@ export const AdminStudentDetail: React.FC = () => {
   const [newAssignment, setNewAssignment] = useState({ class: '', section: '', subject: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [selectedDocKey, setSelectedDocKey] = useState<keyof StudentDocuments | null>(null);
 
   const user = state.registeredUsers.find(u => u.id === id);
   const isTeacher = user?.role === 'TEACHER';
@@ -53,6 +55,14 @@ export const AdminStudentDetail: React.FC = () => {
     'Hindi', 'English', 'Maths', 'Science', 'Sanskrit', 
     'Social Science', 'Computer', 'Drawing', 'Dancing', 
     'Singing', 'Gujrati', 'Marathi', 'Health & Physical', 'Games'
+  ];
+
+  const REQUIRED_DOCS: { key: keyof StudentDocuments; label: string }[] = [
+      { key: 'adhaarCard', label: 'Adhaar Card' },
+      { key: 'birthCertificate', label: 'Birth Certificate' },
+      { key: 'previousMarksheet', label: 'Previous Class Marksheet' },
+      { key: 'transferCertificate', label: 'Transfer Certificate (TC)' },
+      { key: 'categoryCertificate', label: 'Special Category Certificate' },
   ];
 
   // Sync state when user loads or id changes
@@ -220,6 +230,41 @@ export const AdminStudentDetail: React.FC = () => {
       });
   };
 
+  // Document Handling
+  const triggerDocUpload = (key: keyof StudentDocuments) => {
+      setSelectedDocKey(key);
+      setTimeout(() => docInputRef.current?.click(), 100);
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && selectedDocKey && user) {
+          if (file.size > 5 * 1024 * 1024) {
+              alert("File too large (Max 5MB)");
+              return;
+          }
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+              const base64 = ev.target?.result as string;
+              await updateUserDocuments(user.id, { [selectedDocKey]: base64 });
+              alert(`Updated ${selectedDocKey} for ${user.name}`);
+              setSelectedDocKey(null);
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const viewDocument = (base64Data: string) => {
+      const win = window.open();
+      win?.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+  };
+
+  const deleteDocument = async (key: keyof StudentDocuments) => {
+      if (confirm(`Remove this document from ${user.name}'s profile?`)) {
+          await updateUserDocuments(user.id, { [key]: undefined }); // undefined to remove
+      }
+  };
+
   return (
     <div className="max-w-4xl mx-auto pb-32 animate-in fade-in slide-in-from-bottom-4 duration-700 space-y-8">
       
@@ -370,6 +415,7 @@ export const AdminStudentDetail: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+         {/* ... (Existing Profile Cards - Email, Mobile, DOB, Class) ... */}
          {isEditing ? (
              <EditCard 
                 label={isTeacher ? "Faculty Email" : "Student ID / Email"}
@@ -440,6 +486,7 @@ export const AdminStudentDetail: React.FC = () => {
              />
          )}
 
+         {/* Teacher/Student Specific Fields Logic */}
          {isTeacher && (
              isEditing ? (
                  <EditCard 
@@ -678,6 +725,65 @@ export const AdminStudentDetail: React.FC = () => {
              />
          )}
       </div>
+
+      {/* Document Management Section (Only for Student Profiles) */}
+      {!isTeacher && !isEditing && (
+          <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+              <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-3">
+                  <FileText className="text-indigo-600" size={18} /> Official Documents
+              </h4>
+              <div className="space-y-3">
+                  {REQUIRED_DOCS.map((doc) => {
+                      const existingDoc = user.documents?.[doc.key];
+                      return (
+                          <div key={doc.key} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                              <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${existingDoc ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                                      {existingDoc ? <Check size={16} /> : <FileText size={16} />}
+                                  </div>
+                                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700 max-w-[120px] md:max-w-none truncate">{doc.label}</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                  {existingDoc ? (
+                                      <>
+                                          <button 
+                                              onClick={() => viewDocument(existingDoc)}
+                                              className="flex items-center gap-2 px-3 py-1.5 bg-white border border-emerald-100 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-emerald-50 transition-all"
+                                          >
+                                              <Eye size={12} /> View
+                                          </button>
+                                          <button 
+                                              onClick={() => triggerDocUpload(doc.key)}
+                                              className="p-1.5 bg-white text-indigo-500 rounded-lg hover:bg-indigo-50 border border-slate-100 shadow-sm"
+                                              title="Replace Document"
+                                          >
+                                              <Edit3 size={12} />
+                                          </button>
+                                          <button 
+                                              onClick={() => deleteDocument(doc.key)}
+                                              className="p-1.5 bg-white text-rose-500 rounded-lg hover:bg-rose-50 border border-slate-100 shadow-sm"
+                                              title="Delete Document"
+                                          >
+                                              <Trash2 size={12} />
+                                          </button>
+                                      </>
+                                  ) : (
+                                      <button 
+                                          onClick={() => triggerDocUpload(doc.key)}
+                                          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+                                      >
+                                          <UploadCloud size={12} /> Upload
+                                      </button>
+                                  )}
+                              </div>
+                          </div>
+                      );
+                  })}
+                  <input type="file" ref={docInputRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleDocUpload} />
+              </div>
+          </div>
+      )}
     </div>
   );
 };

@@ -53,6 +53,15 @@ export interface User {
   studentSection?: string;
   assignedClasses?: string[];
   subjects?: string[];
+  isFirstLogin?: boolean;
+}
+
+export interface StudentDocuments {
+  adhaarCard?: string;
+  birthCertificate?: string;
+  previousMarksheet?: string;
+  transferCertificate?: string;
+  categoryCertificate?: string;
 }
 
 export interface RegisteredUser {
@@ -70,6 +79,8 @@ export interface RegisteredUser {
   status: UserStatus;
   role: UserRole;
   customFee?: number; // Admin set custom fee for this student
+  isFirstLogin?: boolean;
+  documents?: StudentDocuments;
 }
 
 export interface Tag {
