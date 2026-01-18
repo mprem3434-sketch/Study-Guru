@@ -13,7 +13,7 @@ import {
   query, 
   where,
   getDocs
-} from 'firebase/firestore';
+} from 'https://esm.sh/firebase@10.8.0/firestore';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 

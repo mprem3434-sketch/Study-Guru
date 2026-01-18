@@ -1,6 +1,6 @@
 
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp } from "https://esm.sh/firebase@10.8.0/app";
+import { getFirestore } from "https://esm.sh/firebase@10.8.0/firestore";
 
 // TODO: Replace the following with your app's Firebase project configuration
 // You can find this in the Firebase Console -> Project Settings -> General -> Your Apps
