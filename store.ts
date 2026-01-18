@@ -2,18 +2,15 @@
 import { create } from 'zustand';
 import { AppState, UserRole, UserStatus, MaterialType, ReaderTheme, Subject, Topic, Material, User, RegisteredUser, Transaction, StudentDocuments } from './types.ts';
 import { saveFile, getFile, deleteFile } from './db.ts';
-import { db } from './firebase.ts';
 import { 
+  db, 
   collection, 
   doc, 
   setDoc, 
   updateDoc, 
   deleteDoc, 
-  onSnapshot, 
-  query, 
-  where,
-  getDocs
-} from 'https://esm.sh/firebase@10.8.0/firestore';
+  onSnapshot
+} from './firebase.ts';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -109,51 +106,74 @@ export const useStore = create<StoreState>((set, get) => ({
   isLoaded: false,
 
   initializeRealtimeListeners: () => {
-    // Listen to Subjects
-    const subjectsUnsub = onSnapshot(collection(db, "subjects"), (snapshot) => {
-        const subjects: Subject[] = [];
-        snapshot.forEach((doc) => {
-            subjects.push(doc.data() as Subject);
-        });
-        // Sort by position
-        subjects.sort((a,b) => a.position - b.position);
-        
-        set((store) => ({
-            state: { ...store.state, subjects },
-            isLoaded: true // Ensure app is marked as loaded once data arrives
-        }));
-    });
+    // FAILSAFE: Ensure app loads even if DB hangs or is misconfigured
+    // If listeners don't fire within 1.5 seconds, assume offline mode and render UI
+    setTimeout(() => {
+        const { isLoaded } = get();
+        if (!isLoaded) {
+            console.warn("Firebase connection timed out or not configured. Forcing offline mode.");
+            set({ isLoaded: true });
+        }
+    }, 1500);
 
-    // Listen to Registered Users
-    const usersUnsub = onSnapshot(collection(db, "users"), (snapshot) => {
-        const registeredUsers: RegisteredUser[] = [];
-        snapshot.forEach((doc) => {
-            registeredUsers.push(doc.data() as RegisteredUser);
-        });
-        set((store) => ({
-            state: { ...store.state, registeredUsers }
-        }));
-    });
+    // If DB failed to initialize (e.g. no config), don't crash, just mark loaded and return
+    if (!db) {
+        // Immediate load for offline mode
+        set({ isLoaded: true });
+        return;
+    }
 
-    // Listen to Ledger
-    const ledgerUnsub = onSnapshot(collection(db, "ledger"), (snapshot) => {
-        const ledger: Transaction[] = [];
-        snapshot.forEach((doc) => {
-            ledger.push(doc.data() as Transaction);
+    try {
+        // Listen to Subjects
+        onSnapshot(collection(db, "subjects"), (snapshot) => {
+            const subjects: Subject[] = [];
+            snapshot.forEach((doc) => {
+                subjects.push(doc.data() as Subject);
+            });
+            // Sort by position
+            subjects.sort((a,b) => a.position - b.position);
+            
+            set((store) => ({
+                state: { ...store.state, subjects },
+                isLoaded: true 
+            }));
+        }, (error) => {
+            console.error("Subjects sync error:", error);
+            // Even if sync fails, mark app as loaded so UI shows up
+            set({ isLoaded: true });
         });
-        // Sort by date desc
-        ledger.sort((a,b) => b.date - a.date);
-        
-        set((store) => ({
-            state: { ...store.state, ledger }
-        }));
-    });
-    
-    // Note: In a real app, you would want to return these unsubscribe functions to clean up
+
+        // Listen to Registered Users
+        onSnapshot(collection(db, "users"), (snapshot) => {
+            const registeredUsers: RegisteredUser[] = [];
+            snapshot.forEach((doc) => {
+                registeredUsers.push(doc.data() as RegisteredUser);
+            });
+            set((store) => ({
+                state: { ...store.state, registeredUsers }
+            }));
+        });
+
+        // Listen to Ledger
+        onSnapshot(collection(db, "ledger"), (snapshot) => {
+            const ledger: Transaction[] = [];
+            snapshot.forEach((doc) => {
+                ledger.push(doc.data() as Transaction);
+            });
+            // Sort by date desc
+            ledger.sort((a,b) => b.date - a.date);
+            
+            set((store) => ({
+                state: { ...store.state, ledger }
+            }));
+        });
+    } catch (e) {
+        console.error("Error setting up listeners:", e);
+        set({ isLoaded: true });
+    }
   },
 
   login: async (name, role, id) => {
-    // Verification against local state (which is synced from Firebase)
     const { state } = get();
     const registered = state.registeredUsers.find(u => u.id === id);
     
@@ -175,7 +195,6 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     }));
     
-    // Persist login session locally for reload
     localStorage.setItem('currentUser', JSON.stringify(userObj));
   },
 
@@ -191,7 +210,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
   signup: async (name, id, pass, mobile, dob, studentClass, subjects, role: UserRole = 'USER') => {
     const { state } = get();
-    // Check duplication in current synced state
     if (state.registeredUsers.find(u => u.id === id)) return false;
     
     const newUser: RegisteredUser = {
@@ -211,7 +229,11 @@ export const useStore = create<StoreState>((set, get) => ({
       documents: {}
     };
     
-    // Write to Firebase
+    if (!db) {
+        console.error("DB not connected");
+        return false;
+    }
+
     try {
         await setDoc(doc(db, "users", id), newUser);
         return true;
@@ -222,9 +244,9 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   updateUserStatus: async (id, status) => {
+    if (!db) return;
     try {
-        const userRef = doc(db, "users", id);
-        await updateDoc(userRef, { status: status });
+        await updateDoc(doc(db, "users", id), { status: status });
     } catch (e) {
         console.error("Update Status Error", e);
     }
@@ -233,6 +255,7 @@ export const useStore = create<StoreState>((set, get) => ({
   adminAddUser: async (userData) => {
     const { state } = get();
     if (state.registeredUsers.find(u => u.id === userData.id)) return false;
+    if (!db) return false;
 
     const newUser: RegisteredUser = {
         ...userData,
@@ -251,8 +274,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   adminAddUsersBulk: async (newUsers) => {
-    // Firestore batch writes are limited to 500. For simplicity, we loop (or use batching in production)
-    // We'll process them one by one for this demo to ensure reliability
+    if (!db) return;
     for (const u of newUsers) {
         const processedUser = {
             ...u,
@@ -264,10 +286,12 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   adminDeleteUser: async (id) => {
+      if (!db) return;
       await deleteDoc(doc(db, "users", id));
   },
 
   adminDeleteUsersBulk: async (ids) => {
+      if (!db) return;
       for (const id of ids) {
           await deleteDoc(doc(db, "users", id));
       }
@@ -275,12 +299,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
   adminUpdateUser: async (originalId, updates) => {
     const { state } = get();
-    // Check if ID changed and it's unique
+    if (!db) return false;
+
     if (updates.id && updates.id !== originalId) {
        const duplicate = state.registeredUsers.find(u => u.id === updates.id);
        if (duplicate) return false;
        
-       // ID change requires creating new doc and deleting old one
        const oldUser = state.registeredUsers.find(u => u.id === originalId);
        if(!oldUser) return false;
        
@@ -290,7 +314,6 @@ export const useStore = create<StoreState>((set, get) => ({
        return true;
     }
 
-    // Normal Update
     try {
         await updateDoc(doc(db, "users", originalId), updates);
         return true;
@@ -298,25 +321,23 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   adminAssignClassToTeacher: async (teacherId, assignedClasses) => {
+      if (!db) return;
       await updateDoc(doc(db, "users", teacherId), { assignedClasses });
   },
 
   adminAddTransaction: async (data) => {
+    if (!db) return;
     const id = generateId();
     const newTransaction: Transaction = { ...data, id };
     await setDoc(doc(db, "ledger", id), newTransaction);
   },
 
   adminDeleteTransaction: async (id) => {
+    if (!db) return;
     await deleteDoc(doc(db, "ledger", id));
   },
 
   adminSetClassFee: (className, amount) => {
-    // Class fees are part of global settings. 
-    // In a real DB, we'd have a 'settings' collection. 
-    // For now, we update local state but we should probably persist this too.
-    // Let's create/update a 'settings' doc in Firestore.
-    // NOTE: Simulating persistence via local state for settings to avoid over-complicating store for now
     set(store => ({
       state: {
         ...store.state,
@@ -326,12 +347,14 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   adminSetStudentCustomFee: async (studentId, amount) => {
-    await updateDoc(doc(db, "users", studentId), { customFee: amount || null }); // Use null to remove field in Firestore
+    if (!db) return;
+    // Firestore deleteField() is ideally used here if undefined, but we'll set null
+    await updateDoc(doc(db, "users", studentId), { customFee: amount || null });
   },
 
   changePassword: async (newPass) => {
     const { state } = get();
-    if (!state.currentUser) return false;
+    if (!state.currentUser || !db) return false;
     
     try {
         await updateDoc(doc(db, "users", state.currentUser.id), { password: newPass });
@@ -341,15 +364,13 @@ export const useStore = create<StoreState>((set, get) => ({
 
   updateProfileAvatar: async (file) => {
     const { state } = get();
-    if (!state.currentUser) return;
+    if (!state.currentUser || !db) return;
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       const result = e.target?.result as string;
-      // Write to Firestore
       await updateDoc(doc(db, "users", state.currentUser!.id), { avatar: result });
       
-      // Update local current user immediately for UX
       set(store => ({
         state: { ...store.state, currentUser: { ...store.state.currentUser!, avatar: result } }
       }));
@@ -359,23 +380,22 @@ export const useStore = create<StoreState>((set, get) => ({
 
   updateUserDOB: async (dob) => {
     const { state } = get();
-    if (!state.currentUser) return false;
+    if (!state.currentUser || !db) return false;
     await updateDoc(doc(db, "users", state.currentUser.id), { dob });
     return true;
   },
 
   updateUserMobile: async (mobile) => {
     const { state } = get();
-    if (!state.currentUser) return false;
+    if (!state.currentUser || !db) return false;
     await updateDoc(doc(db, "users", state.currentUser.id), { mobile });
     return true;
   },
 
   updateStudentClass: async (studentClass) => {
     const { state } = get();
-    if (!state.currentUser) return false;
+    if (!state.currentUser || !db) return false;
     await updateDoc(doc(db, "users", state.currentUser.id), { studentClass });
-    // Update local session
     set(store => ({
         state: { ...store.state, currentUser: { ...store.state.currentUser!, studentClass } }
     }));
@@ -384,7 +404,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   updateTeacherSubjects: async (subjects) => {
     const { state } = get();
-    if (!state.currentUser) return false;
+    if (!state.currentUser || !db) return false;
     await updateDoc(doc(db, "users", state.currentUser.id), { subjects });
     set(store => ({
         state: { ...store.state, currentUser: { ...store.state.currentUser!, subjects } }
@@ -393,13 +413,12 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   updateUserDocuments: async (userId, documents) => {
-      // We need to merge with existing docs
       const { state } = get();
+      if (!db) return false;
       const user = state.registeredUsers.find(u => u.id === userId);
       if(!user) return false;
 
       const updatedDocs = { ...user.documents, ...documents };
-      // Remove undefined keys
       Object.keys(updatedDocs).forEach(key => updatedDocs[key as keyof StudentDocuments] === undefined && delete updatedDocs[key as keyof StudentDocuments]);
 
       await updateDoc(doc(db, "users", userId), { documents: updatedDocs });
@@ -408,7 +427,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   completeUserOnboarding: async () => {
       const { state } = get();
-      if (!state.currentUser) return;
+      if (!state.currentUser || !db) return;
       await updateDoc(doc(db, "users", state.currentUser.id), { isFirstLogin: false });
       set(store => ({
           state: { ...store.state, currentUser: { ...store.state.currentUser!, isFirstLogin: false } }
@@ -417,6 +436,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   addSubject: async (name, color, icon, targetClass) => {
     const { state } = get();
+    if (!db) return;
     const id = generateId();
     const newSubject: Subject = {
       id,
@@ -432,11 +452,13 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   deleteSubject: async (id) => {
+    if (!db) return;
     await deleteDoc(doc(db, "subjects", id));
   },
 
   addTopic: async (subjectId, name, description) => {
     const { state } = get();
+    if (!db) return;
     const subject = state.subjects.find(s => s.id === subjectId);
     if (!subject) return;
 
@@ -457,10 +479,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   deleteTopic: async (subjectId, topicId) => {
     const { state } = get();
+    if (!db) return;
     const subject = state.subjects.find(s => s.id === subjectId);
     if (!subject) return;
     
-    // Cleanup files associated with this topic (Local only for now as we don't have storage bucket setup)
     const topic = subject.topics.find(t => t.id === topicId);
     topic?.materials.forEach(m => {
         if (m.localFileKey) deleteFile(m.localFileKey);
@@ -472,7 +494,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   togglePinTopic: async (topicId) => {
     const { state } = get();
-    // Find subject that contains this topic
+    if (!db) return;
     const subject = state.subjects.find(s => s.topics.some(t => t.id === topicId));
     if (!subject) return;
 
@@ -482,6 +504,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   toggleTopicCompletion: async (topicId) => {
     const { state } = get();
+    if (!db) return;
     const subject = state.subjects.find(s => s.topics.some(t => t.id === topicId));
     if (!subject) return;
 
@@ -499,8 +522,6 @@ export const useStore = create<StoreState>((set, get) => ({
     let fileSize;
     const { state } = get();
 
-    // Files are still stored locally in IndexedDB to avoid Firestore size limits (1MB document limit)
-    // In a full production app, this would upload to Firebase Storage and get a downloadURL
     if (file) {
       localFileKey = `file_${generateId()}`;
       fileName = file.name;
@@ -525,6 +546,7 @@ export const useStore = create<StoreState>((set, get) => ({
       createdBy: state.currentUser?.name
     };
 
+    if (!db) return;
     const subject = state.subjects.find(s => s.topics.some(t => t.id === topicId));
     if (!subject) return;
 
@@ -537,6 +559,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   deleteMaterial: async (topicId, materialId) => {
     const { state } = get();
+    if (!db) return;
     const subject = state.subjects.find(s => s.topics.some(t => t.id === topicId));
     if (!subject) return;
 
@@ -556,7 +579,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   saveMaterialNotes: async (materialId, notes) => {
     const { state } = get();
-    // Find subject/topic for this material
+    if (!db) return;
     let subject: Subject | undefined;
     
     for (const s of state.subjects) {
@@ -577,6 +600,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   updateMaterialProgress: async (materialId, progress) => {
     const { state } = get();
+    if (!db) return;
     let subject: Subject | undefined;
     
     for (const s of state.subjects) {
@@ -595,7 +619,6 @@ export const useStore = create<StoreState>((set, get) => ({
     await updateDoc(doc(db, "subjects", subject.id), { topics: updatedTopics });
   },
 
-  // Download logic remains local (Offline cache)
   downloadMaterial: async (materialId) => {
      const { state } = get();
      let mat: Material | undefined;
@@ -620,13 +643,6 @@ export const useStore = create<StoreState>((set, get) => ({
        
        const key = `dl_${materialId}`;
        await saveFile(key, blob);
-
-       // Update Sync State indicating local availability
-       // Note: We might NOT want to sync this to everyone else in DB, 
-       // but for simplicity we are storing "isDownloaded" in the data model. 
-       // In a real app, "isDownloaded" should be a local-only property overlay.
-       // For this demo, we will persist it, accepting that it shows as downloaded for everyone.
-       // Refinement: We won't push this to Firestore to avoid confusion. We will update local state only.
        
        set(store => ({
          state: {
